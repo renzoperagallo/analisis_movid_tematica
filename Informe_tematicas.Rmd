@@ -476,16 +476,10 @@ movid_2022 |> group_by(d14_recoded) |> tally()
 
 
 
-# C7 respuesta a contacto estrecho ----------------------------------------
+# C7 respuesta a contacto estrecho sin sintomas  ----------------------------------------
 
 
 # Posibles respuestas (se recodifican para poder ser sumadas)
-movid_2022 <- 
-  movid_2022 |> 
-  mutate(c7_1 = if_else(c7_1 == 1, 1, 0),
-         c7_2 = if_else(c7_2 == 2, 1, 0), # Se aislaría c7_2 == 2
-         c7_3 = if_else(c7_3 == 3, 1, 0)) # Utilizaría mascarilla c7_3 == 3
-
 # *Tuve que usar NA como referencia para que funcionara el ifelse
 
 movid_2022 <- 
@@ -513,12 +507,48 @@ movid_2022 |> group_by(c7_realizar_test) |> tally()
 # Cada una de las acciones descrita anteriormente suma un punto al indice. 
 movid_2022 <- 
   movid_2022 |> 
-  mutate(indice_respuesta_contacto_estrecho = ifelse(c7_1 == 1, 0, c7_2+c7_3+c7_realizar_test))
+  mutate(indice_respuesta_contacto_estrecho_sin_sintomas = ifelse(c7_1 == 1, 0, c7_2+c7_3+c7_realizar_test))
 
 # Comprobación
-movid_2022 |> group_by(indice_respuesta_contacto_estrecho) |> tally()
+movid_2022 |> group_by(indice_respuesta_contacto_estrecho_sin_sintomas) |> tally()
 
 
+
+# C8 respuesta a contacto estrecho con sintomas  ----------------------------------------
+
+
+# Posibles respuestas (se recodifican para poder ser sumadas)
+# *Tuve que usar NA como referencia para que funcionara el ifelse
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c8_1 = if_else(is.na(c8_1), 0, 1), # No haría nada c8_1 == 1
+         c8_2 = if_else(is.na(c8_2), 0, 1), # Se aislaría c8_2 == 2
+         c8_3 = if_else(is.na(c8_3), 0, 1), # Utilizaría mascarilla c8_3 == 3
+         c8_4 = if_else(is.na(c8_4), 0, 1),
+         c8_5 = if_else(is.na(c8_5), 0, 1),
+         c8_6 = if_else(is.na(c8_6), 0, 1)) 
+
+# Se haría un un test (test rapido  auto aplicado, aplicado por otro o PCR)
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c8_realizar_test = ifelse(c8_4 == 1 | c8_5 == 1 | c8_6 == 1, 1, 0))
+
+# Comprobación
+movid_2022 |> group_by(c8_1) |> tally()
+movid_2022 |> group_by(c8_2) |> tally()
+movid_2022 |> group_by(c8_3) |> tally()
+movid_2022 |> group_by(c8_realizar_test) |> tally()
+
+## Creación de un indice de respuesta a contacto estrecha
+# Cada una de las acciones descrita anteriormente suma un punto al indice. 
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(indice_respuesta_contacto_estrecho_con_sintomas = ifelse(c8_1 == 1, 0, c8_2+c8_3+c8_realizar_test))
+
+# Comprobación
+movid_2022 |> group_by(indice_respuesta_contacto_estrecho_con_sintomas) |> tally()
 
 #  ++ Creación de los objetos survey ------------------------------------------
 
@@ -1378,8 +1408,155 @@ graph_barras_bivariado(disposicion_vacunacion_ninos_adultos,
 
 ### 6. Medidas de autocuidado y protección ante sospecha de COVID-19
 
+Para evaluar las medidas de autocuidado  llevadas a cabo por las personas  a causa de una sospecha por covid 19 se realizaron dos preguntas  en la versión del año 2022 de la encuesta. En la pregunta c7 se consulta a la persona: si estuvo en contacto en contacto estrecho con una persona con COVID-19 pero no presenta síntomas compatibles con la enfermedad, ¿qué haría durante los siguientes siete días? Mientras que  en la pregunta c8 se pregunta: Y si Usted, luego de tener este contacto estrecho con una persona con COVID-19, comenzara a tener síntomas compatibles con la enfermedad, ¿qué haría durante los siguientes siete días?
 
-Para evaluar las medidas de autocuidado  llevadas a cabo por las personas. En la versión del año 2022 de la encuesta se consulto a las personas que harían luego  de tener un contacto estrecho con una persona con COVID-19
+En ambos caso se espero respuesta espontanea, es decir, no se sugirieron posibles respuestas. Las respuestas posibles se clasificaron de la siguiente forma (cada persona podía tener múltiples respuestas): 
+
+1. No haría nada, seguiría su vida normalmente
+2. Se aislaría
+3. Utilizaría mascarilla al interior del hogar o en lugares cerrados
+4. Se realizaría un test rápido administrado por Ud. mismo
+5. Se realizaría un test rápido en un centro de salud
+6. Se realizaría un examen PCR
+7. No sabe
+8. No responde
+
+Con base en estas respuetas se puede construir un índice que va de 0 a 3 donde 0 corresponde a no hacer ninguna acción y 3 a  realizar todas las acciones descritas (aislarse,  utilizar mascarilla en lugares cerrados y realizarse algún test para detectar COVID (test rápido o pcr), siendo los valores intermedios cualquier sumatoria de las acciones descritas anteriormente.
+
+Al comparar ambas preguntas, se reconoce que las personas, en general, harían más acciones  preventivas si fueran contacto estrecho en el caso de que tuvieran sintomas. Por ejemplo, en el caso de tener contacto estrecho con una personas con COVID-19 y no tener sintomas, un 8.6% (IC95% 6.7-10.5) de las personas no realizaría alguna de las acciones preventivas descritas anteriormente, mientras que, en el caso de sufrir sintomas esa cifra se reduce al 2.4% (IC95% 1.3-3.7). De la misma forma, se observa un aumento significativo de personas que realizarían 2 acciones preventivas  si además de ser contacto estrecho  se sufren sintomas asociados a COVID (32.0% (IC95% 28.7-35.3) sin sintomas a 51.7% (IC95% 48.2-55.3)). La comparación se puede ver con mayor detalle en el siguiente gráfico. 
+
+```{r indice_respuesta_contacto_estrecho_comparacion, echo=FALSE}
+
+
+## Indice de acciones realizadas si la persona es contacto estrecho
+# Donde  se evaluan tres acciones (se aislaría, utilizaría mascarilla al interior del hogar o 
+# en lugares cerrados y se  realizaría un test rapido o examen pcr). El número indica cuantas de dichas 
+# acciones realizaría la persona. 
+
+
+indice_respuesta_contacto_estrecho_sin_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(indice_respuesta_contacto_estrecho_sin_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(sintomas = "sin sintomas") |> 
+  select(sintomas, indice_respuesta_contacto_estrecho =`as.factor(indice_respuesta_contacto_estrecho_sin_sintomas)`, everything())
+
+indice_respuesta_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(sintomas = "con sintomas") |> 
+  select(sintomas, indice_respuesta_contacto_estrecho = `as.factor(indice_respuesta_contacto_estrecho_con_sintomas)`, everything())
+
+
+indice_respuesta_contacto_estrecho_comparacion <- rbind(indice_respuesta_contacto_estrecho_sin_sintomas, 
+                                                        indice_respuesta_contacto_estrecho_con_sintomas)
+
+# Orden de la variable para gráfico
+indice_respuesta_contacto_estrecho_comparacion$sintomas <- 
+  factor(indice_respuesta_contacto_estrecho_comparacion$sintomas,
+         levels = c("sin sintomas", "con sintomas"))
+
+graph_barras_bivariado(indice_respuesta_contacto_estrecho_comparacion,
+                       titulo = "Nº acciones realizadas en caso de contacto estrecho")
+
+```
+
+
+Al analizar con mayor detalle las acciones que realizarían o no las personas en caso de ser contacto estrecho y presentar sintomas, se reconoce que la principal medida no mencionada espontaneamente por las personas es utilizar mascarilla en lugares cerrados, donde solo un 7.2% (IC95% 5.2-9.1) de la población lo menciona. 
+
+```{r comparacion_acciones_contacto_estrecho_con_sintomas, echo=FALSE}
+
+# Se observa que la mayoría de la población realizaría entre 1 y 2 acciones. 
+# la principal medida que la gente no realizaría es: 
+# Utilizar mascarilla en lugares cerrados , donde tan solo un 6.90% (IC95% 5.03% - 8.77%) 
+# de la muestra declaró que lo haría
+
+# mascarilla
+utilizar_mascarilla_contacto_estrecho_con_sintomas <- 
+movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_3)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Utilizar mascarilla en lugares cerrados") |> 
+  select(accion, si_no = `as.factor(c8_3)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+# Aislamiento
+aislamiento_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_2)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Aislamiento") |> 
+  select(accion, si_no = `as.factor(c8_2)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+# Realización test
+test_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_realizar_test)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Realizar test COVID") |> 
+  select(accion, si_no = `as.factor(c8_realizar_test)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+
+
+# Comparacion
+
+comparacion_acciones_contacto_estrecho_con_sintomas <- rbind(utilizar_mascarilla_contacto_estrecho_con_sintomas,
+                                                             aislamiento_contacto_estrecho_con_sintomas,
+                                                             test_contacto_estrecho_con_sintomas)
+
+graph_barras_bivariado(comparacion_acciones_contacto_estrecho_con_sintomas,
+                       titulo = "Acciones a realizar en caso de contacto estrecho y presentar sintomas")
+
+```
+
+Por último, no se observaron mayores diferencias de acuerdo a sexo, tramo etario, o padecimiento de enfermedad crónica. Sin embargo, si se observaron diferencias  con relación al principal medio de comunicación utilizado por la persona para informarse. 
+
+En este caso se observa un mayor porcentaje de personas que harían dos acciones preventivas (en vez de una) en caso de ser contacto estrecho y tener sintomas, entre aquellas personas que se informan principalmente por internet en contraste con aquellas personas que se informan principalmente por medios tradicionales (57.3% (IC95% 52.6-62.0)  comparado con  37.6% (IC95% 30.0-45.3), respectivamente). 
+
+```{r comparacion_acciones_contacto_estrecho_con_sintomas, echo=FALSE}
+## Desagregaciones 
+
+# Medidas de autocuidado y proteccion antes sospecha covid según medios de información 
+indice_respuesta_contacto_estrecho_con_sintomas_medios <- 
+  movid_2022_s |> 
+  filter(!mi_web_o_tradicionales == "Otros/NS/NR") |> 
+  group_by(mi_web_o_tradicionales, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Medidas de autocuidado y proteccion antes sospecha covid según edad 
+indice_respuesta_contacto_estrecho_con_sintomas_edad <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(edad_2, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Medidas de autocuidado y proteccion antes sospecha covid según sexo
+indice_respuesta_contacto_estrecho_con_sintomas_sexo <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(sexo, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Medidas de autocuidado y proteccion antes sospecha covid según si la persona es enferma crónica 
+indice_respuesta_contacto_estrecho_con_sintomas_cronica <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(cronica_d, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(indice_respuesta_contacto_estrecho_con_sintomas_medios,
+                       titulo = "Nº acciones realizadas en caso de contacto estrecho según medio de información")
+
+
+```
 
 
 

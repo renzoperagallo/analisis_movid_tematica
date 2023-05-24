@@ -322,16 +322,10 @@ movid_2022 |> group_by(d14_recoded) |> tally()
 
 
 
-# C7 respuesta a contacto estrecho ----------------------------------------
+# C7 respuesta a contacto estrecho sin sintomas  ----------------------------------------
 
 
 # Posibles respuestas (se recodifican para poder ser sumadas)
-movid_2022 <- 
-  movid_2022 |> 
-  mutate(c7_1 = if_else(c7_1 == 1, 1, 0),
-         c7_2 = if_else(c7_2 == 2, 1, 0), # Se aislaría c7_2 == 2
-         c7_3 = if_else(c7_3 == 3, 1, 0)) # Utilizaría mascarilla c7_3 == 3
-
 # *Tuve que usar NA como referencia para que funcionara el ifelse
 
 movid_2022 <- 
@@ -359,12 +353,48 @@ movid_2022 |> group_by(c7_realizar_test) |> tally()
 # Cada una de las acciones descrita anteriormente suma un punto al indice. 
 movid_2022 <- 
   movid_2022 |> 
-  mutate(indice_respuesta_contacto_estrecho = ifelse(c7_1 == 1, 0, c7_2+c7_3+c7_realizar_test))
+  mutate(indice_respuesta_contacto_estrecho_sin_sintomas = ifelse(c7_1 == 1, 0, c7_2+c7_3+c7_realizar_test))
 
 # Comprobación
-movid_2022 |> group_by(indice_respuesta_contacto_estrecho) |> tally()
+movid_2022 |> group_by(indice_respuesta_contacto_estrecho_sin_sintomas) |> tally()
 
 
+
+# C8 respuesta a contacto estrecho con sintomas  ----------------------------------------
+
+
+# Posibles respuestas (se recodifican para poder ser sumadas)
+# *Tuve que usar NA como referencia para que funcionara el ifelse
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c8_1 = if_else(is.na(c8_1), 0, 1), # No haría nada c8_1 == 1
+         c8_2 = if_else(is.na(c8_2), 0, 1), # Se aislaría c8_2 == 2
+         c8_3 = if_else(is.na(c8_3), 0, 1), # Utilizaría mascarilla c8_3 == 3
+         c8_4 = if_else(is.na(c8_4), 0, 1),
+         c8_5 = if_else(is.na(c8_5), 0, 1),
+         c8_6 = if_else(is.na(c8_6), 0, 1)) 
+
+# Se haría un un test (test rapido  auto aplicado, aplicado por otro o PCR)
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c8_realizar_test = ifelse(c8_4 == 1 | c8_5 == 1 | c8_6 == 1, 1, 0))
+
+# Comprobación
+movid_2022 |> group_by(c8_1) |> tally()
+movid_2022 |> group_by(c8_2) |> tally()
+movid_2022 |> group_by(c8_3) |> tally()
+movid_2022 |> group_by(c8_realizar_test) |> tally()
+
+## Creación de un indice de respuesta a contacto estrecha
+# Cada una de las acciones descrita anteriormente suma un punto al indice. 
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(indice_respuesta_contacto_estrecho_con_sintomas = ifelse(c8_1 == 1, 0, c8_2+c8_3+c8_realizar_test))
+
+# Comprobación
+movid_2022 |> group_by(indice_respuesta_contacto_estrecho_con_sintomas) |> tally()
 
 #  ++ Creación de los objetos survey ------------------------------------------
 

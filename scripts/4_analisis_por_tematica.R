@@ -281,61 +281,105 @@ disposicion_vacunacion_ninos_adultos <-
 # acciones realizaría la persona. 
 
 
-# Medidas de autocuidado y proteccion antes sospecha covid según medios de información 
+indice_respuesta_contacto_estrecho_sin_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(indice_respuesta_contacto_estrecho_sin_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(sintomas = "sin sintomas") |> 
+  select(sintomas, indice_respuesta_contacto_estrecho =`as.factor(indice_respuesta_contacto_estrecho_sin_sintomas)`, everything())
 
+indice_respuesta_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(sintomas = "con sintomas") |> 
+  select(sintomas, indice_respuesta_contacto_estrecho = `as.factor(indice_respuesta_contacto_estrecho_con_sintomas)`, everything())
+
+
+indice_respuesta_contacto_estrecho_comparacion <- rbind(indice_respuesta_contacto_estrecho_sin_sintomas, 
+                                                        indice_respuesta_contacto_estrecho_con_sintomas)
+# Orden de la variable para gráfico
+indice_respuesta_contacto_estrecho_comparacion$sintomas <- 
+  factor(indice_respuesta_contacto_estrecho_comparacion$sintomas,
+         levels = c("sin sintomas", "con sintomas"))
+
+
+
+## Detalle y comparación de acciones mencionadas 
+
+# mascarilla
+utilizar_mascarilla_contacto_estrecho_con_sintomas <- 
 movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_3)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Utilizar mascarilla en lugares cerrados") |> 
+  select(accion, si_no = `as.factor(c8_3)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+# Aislamiento
+aislamiento_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_2)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Aislamiento") |> 
+  select(accion, si_no = `as.factor(c8_2)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+# Realización test
+test_contacto_estrecho_con_sintomas <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(as.factor(c8_realizar_test)) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(accion = "Realizar test COVID") |> 
+  select(accion, si_no = `as.factor(c8_realizar_test)`, everything()) |> 
+  mutate(si_no = recode(si_no, `0` = "No se menciona espontaneamente", `1` = "Se menciona espontaneamente"))
+
+
+# Comparacion
+
+comparacion_acciones_contacto_estrecho_con_sintomas <- rbind(utilizar_mascarilla_contacto_estrecho_con_sintomas,
+                                                             aislamiento_contacto_estrecho_con_sintomas,
+                                                             test_contacto_estrecho_con_sintomas)
+
+graph_barras_bivariado(comparacion_acciones_contacto_estrecho_con_sintomas,
+                       titulo = "Acciones a realizar en caso de contacto estrecho y presentar sintomas")
+
+
+
+## Desagregaciones 
+
+# Medidas de autocuidado y proteccion antes sospecha covid según medios de información 
+indice_respuesta_contacto_estrecho_con_sintomas_medios <- 
+  movid_2022_s |> 
   filter(!mi_web_o_tradicionales == "Otros/NS/NR") |> 
-  group_by(mi_web_o_tradicionales, as.factor(indice_respuesta_contacto_estrecho)) |> 
+  group_by(mi_web_o_tradicionales, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Medidas de autocuidado y proteccion antes sospecha covid según edad 
-
-movid_2022_s |> 
+indice_respuesta_contacto_estrecho_con_sintomas_edad <- 
+  movid_2022_s |> 
   filter() |> 
-  group_by(edad_2, as.factor(indice_respuesta_contacto_estrecho)) |> 
+  group_by(edad_2, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Medidas de autocuidado y proteccion antes sospecha covid según sexo
-
-movid_2022_s |> 
+indice_respuesta_contacto_estrecho_con_sintomas_sexo <- 
+  movid_2022_s |> 
   filter() |> 
-  group_by(sexo, as.factor(indice_respuesta_contacto_estrecho)) |> 
+  group_by(sexo, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Medidas de autocuidado y proteccion antes sospecha covid según si la persona es enferma crónica 
-
-movid_2022_s |> 
+indice_respuesta_contacto_estrecho_con_sintomas_cronica <- 
+  movid_2022_s |> 
   filter() |> 
-  group_by(cronica_d, as.factor(indice_respuesta_contacto_estrecho)) |> 
+  group_by(cronica_d, as.factor(indice_respuesta_contacto_estrecho_con_sintomas)) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
-
-## Por efectos crónicos
-# Por último, se evalua si ser enfermos cronicos  afecta algo en las medidas
-
-
-# Se observa que la mayoría de la población realizaría entre 1 y 2 acciones. 
-# la principal medida que la gente no realizaría es: 
-# Utilizar mascarilla en lugares cerrados , donde tan solo un 6.90% (IC95% 5.03% - 8.77%) 
-# de la muestra declaró que lo haría
-
-movid_2022_s |> 
-  filter() |> 
-  group_by(as.factor(c7_3)) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
-
-# Aislamiento
-movid_2022_s |> 
-  filter() |> 
-  group_by(as.factor(c7_2)) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
-
-# Realización test
-movid_2022_s |> 
-  filter() |> 
-  group_by(as.factor(c7_realizar_test)) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
-
-
 
 
 
