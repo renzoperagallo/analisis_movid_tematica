@@ -1,0 +1,1398 @@
+---
+title: "Micro informe: resultados encuestas MOVID-IMPACT por tema"
+author: "Renzo Peragallo Díaz"
+date: "2023-05-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r librerias_funciones, include=FALSE}
+# ++ Librerias ---------------------------------------------------------------
+
+if (!require(pacman)){install.packages("pacman")}
+library(pacman)
+p_load(tidyverse,
+       funModeling, # Estadisticas descriptivas
+       haven, # Lectura dta
+       janitor,# Funciones adicionales
+       survey, # Análisis muestral
+       srvyr, # Paquete survey en lenguaje dplyr
+       purrr, # Funcion map
+       ggthemes)  #Temas gráficos
+
+# ++ Funciones ---------------------------------------------------------------
+
+# Razones no vacunacion ---------------------------------------------------
+
+
+# Funcion especifica que sirve para obtener tabulados con las razones de no vacunación 
+calculo_razones_no_vacunacion <- function(srvyr_object, variable) {
+  variable <- rlang::sym(variable) # Permite que el elemento del vector pueda ser evaluado por la funcion. 
+  df <- srvyr_object %>%
+    filter(!is.na(!!variable)) %>%
+    group_by(!!variable) %>%
+    summarize(proportion = survey_mean(vartype = "ci"))
+  return(df)
+}
+
+
+# Grafico bivariado -------------------------------------------------------
+
+# Funcion que toma una salida bivariada de svyr y la transforma en un gráfico
+graph_barras_bivariado <- function(df_original, titulo, label_eje_x = NULL, subtitulo = NULL){
+  df <- df_original 
+  # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
+  df$x <- as.factor(df[[1]])
+  df$y <- round(df[[3]] * 100, 1)
+  df$group_fill <- as.factor(df[[2]])
+  df$ymax <- round(df[[5]] * 100, 1) 
+  df$ymin <- round(df[[4]] * 100, 1)
+  # Gráfico
+  mi_grafico <- ggplot(data = df, 
+         aes(x = x, 
+             y = y, 
+             group = group_fill, 
+             fill = group_fill,
+             ymax = ymax, 
+             ymin = ymin)) +
+    geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
+    geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
+    labs(title = titulo, # Titulo gráfico
+         subtitle = if (is.null(subtitulo)){""} else {subtitulo}, # No se aplica por el tema del gráfico
+         x = if (is.null(label_eje_x)){""} else {label_eje_x},  # Titulo eje x (con este tema no se usa así que lo dejé en nulo)
+         y = "%") + # titulo eje y (no se visualiza en este tema)
+    ylim(0,100) + # limites eje y 
+    geom_text(aes(y = ymax, label = y), 
+              position = position_dodge(width = 0.9), 
+              vjust = -1,
+              size = 3,
+              fontface = 2) + # Argumento que agrega cursivas, negritas, etc
+    scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
+    theme(legend.position = "bottom") +  # Posicion leyenda
+    theme_excel_new() + # tema excel 
+   scale_fill_excel_new(theme = "Badge") # paleta de colores para el tema excel
+  return(mi_grafico)
+}
+
+# Prueba de la funcion
+# graph_barras_bivariado(df_prueba,
+#                        titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
+graph_barras_bivariado(acata_normas_comparacion_anos,
+                       titulo = "Acata normas, comparacion año 2020 y 2022.",
+                       subtitulo = "prueba")
+
+
+
+# Grafico univariado ------------------------------------------------------
+
+# Funcion que toma una salida univariada de svyr y la transforma en un gráfico
+graph_barras_univariado <- function(df_original, titulo, label_eje_x = NULL){
+  df <- df_original 
+  # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
+  df$x <- df[[1]]
+  df$y <- round(df[[2]] * 100, 1)
+  df$ymax <- round(df[[4]] * 100, 1) 
+  df$ymin <- round(df[[3]] * 100, 1)
+  # Gráfico
+  mi_grafico <- ggplot(data = df, 
+                       aes(x = x, 
+                           y = y, 
+                           fill = x, # Se dejó el argumento fill para que las barras conserven la paleta de colores
+                           ymax = ymax, 
+                           ymin = ymin)) +
+    geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
+    geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
+    ylim(0,100) + # limites eje y 
+    geom_text(aes(y = ymax, label = y), 
+              position = position_dodge(width = 0.9), 
+              vjust = -1,
+              size = 3,
+              fontface = 2) + # Argumento que agrega cursivas, negritas, etc
+    scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
+    theme_excel_new() + # tema excel 
+    scale_fill_excel_new(theme = "Badge") + # paleta de colores para el tema excel
+    theme(legend.position = "none") # Posicion leyenda. Se pone none porque es univariado pero se quiere mantener los colores
+  return(mi_grafico)
+}
+
+# Prueba de la funcion
+# df_prueba_2 <- movid_2022_s |> 
+#   filter(!d12_9_recoded == "NS/NR") |> 
+#   group_by(d12_9_recoded) |> 
+#   summarize(proportion = survey_mean(vartype = "ci"))
+# graph_barras_univariado(df_prueba_2, titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
+
+
+# Moda --------------------------------------------------------------------
+
+# Función moda (se utiliza para imputacion en indice de salud mental)
+
+moda <- function(x) {
+  tabla <- table(x)
+  modas <- as.numeric(names(tabla)[tabla == max(tabla)])
+  return(modas)
+}
+
+
+# Sin usar ----------------------------------------------------------------
+
+proporcion_grupo <- 
+  function(srvyr_object, variable_agrupada){
+    df <- {{srvyr_object}} |> 
+      group_by({{variable_agrupada}}) |> 
+      summarize(proportion = survey_mean(vartype = "ci"),
+                total = survey_total(vartype = "ci"))
+    return(df)
+    print(df)
+  }
+```
+
+
+```{r preparacion_bbdd_2022, include=FALSE}
+#  ++ Lectura BBDD ------------------------------------------------------------
+
+## Lectura bases 
+
+movid_2022 <- read_dta("./input/2022/MOVID-IMPACT-2022.dta")
+
+## Limpieza nombres columnas 
+
+movid_2022 <- janitor::clean_names(movid_2022)
+
+## Selecciona a las personas efectivamente entrevistadas de la bbdd
+
+movid_2022 <- movid_2022 %>% filter(entrevistado == 1) # Seleccionar a los entrevistados.
+
+
+
+
+# ++ Variables independientes ------------------------------------------------
+
+
+# Sexo --------------------------------------------------------------------
+
+# 1 hombre, 2 mujer
+movid_2022 |> group_by(sexo) |> tally()
+
+
+# Nivel educacional -------------------------------------------------------
+
+# Opcion 1
+movid_2022 <- movid_2022 %>% 
+  mutate(educ_2 = as.factor(case_when(
+    a7 == 1 | a7 == 2 ~ "Nunca asistió",
+    a7 == 3 | a7 == 4 ~ "Básica",
+    a7 == 5 | a7 == 6 ~ "Media",
+    a7 == 7 | a7 == 8 ~ "Superior",
+    a7 == 9 ~ "Postgrado")))
+
+# Opcion 2: Se recomienda usar esta por IC
+movid_2022 <- movid_2022 %>% 
+  mutate(educ_3 = as.factor(case_when(
+    a7 == 1 | a7 == 2 | a7 ==  3 |a7 == 4 ~ "Básica o nunca asistió",
+    a7 == 5 | a7 ==6 ~ "Media",
+    a7 == 7 | a7 ==8 | a7 == 9 ~ "Superior o postgrado")))
+
+
+# Prevision de salud ------------------------------------------------------
+
+movid_2022 <- 
+  movid_2022 %>% 
+  mutate(prevision = as.factor(
+    case_when(
+      a11 == 1 ~ "Fonasa",
+      a11 == 2 ~ "Isapre",
+      a11 == 5 ~ "Ninguna", 
+      a11 == 3 | a11 == 4 ~ "Otra",
+      a11 == 8 | a11 == 9 ~ "NS/NR")))
+
+movid_2022 |> group_by(prevision) |> tally()
+
+
+# Vacunacion --------------------------------------------------------------
+
+# Personas con esquema inicial de vacunación completo
+# 1 = Si, 2 = No. 
+movid_2022 <- movid_2022 %>% 
+  mutate(vacunacion = as.factor(case_when(
+    (d1 == 1 & (d2 >= 2 | d3 == 5)) ~ "Esquema vacunacion inicial completo",
+    (d1 == 2 | ((d3 == 1 | d3 == 2 | d3== 3 | d3 == 4) & d2 < 2 )) ~ "Sin esquema vacunacion inicial completo",
+    TRUE ~ "Sin esquema vacunacion inicial completo"
+  )))
+
+
+levels(movid_2022$vacunacion)
+movid_2022 |>  filter(vacunacion == 1) |> group_by(vacunacion) |> tally()
+# Ocupados ----------------------------------------------------------------
+
+movid_2022 <- 
+  movid_2022 %>% 
+  mutate(
+     ocupacion_d = as.factor(case_when(
+      g1 == 1 | g2 == 1 | g3 != 10 ~ "ocupados",
+      g4 == 2  ~ "desocupados",
+      TRUE ~ "fuera_fuerza_trabajo")))
+
+
+# Tramo etario ------------------------------------------------------------
+
+# Opcion 1: Desagregacion completa
+movid_2022$edad_rec <- cut(movid_2022$edad,
+                           include.lowest = TRUE,
+                           right = TRUE,
+                           breaks = c(18, 24, 34, 44, 54, 64, 80, Inf)
+)
+
+movid_2022 |> group_by(edad_rec) |> tally()
+
+# Opcion 2: Desagregacion reducida (recomendable por IC)
+movid_2022 <- movid_2022 %>% 
+  mutate(edad_2 = as.factor(case_when(
+    edad < 30 ~ "18 a 29 años",
+    edad >= 30 & edad < 60 ~ "30 a 59 años",
+    edad >= 60 ~ "60 años o más"
+  )))
+
+
+# Nivel de ingresos -------------------------------------------------------
+
+# Se pregunta por ingresos del hogar, pero no se sabe de cuantas personas es el hogar, por lo tanto
+# No se puede obtener ingreso percapita. 
+# Por lo tanto, no se recomienda usar esta variable para análisis. 
+
+# G8 responde nivel de ingresos continuo del hogar ? si/no
+movid_2022 |> group_by(g8) |> tally()
+
+# G8 monto ingresos continuo
+movid_2022 |> group_by(g8_monto) |> tally()
+
+# G9 Tramo ingresos
+movid_2022 |> group_by(g9) |> tally()
+
+# Conversion de tramos de ingresos a media de ingresos (variable continua)
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(tramo_ingresos_continuo = case_when(
+    g9 == 1 ~ 100000,
+    g9 == 2 ~ 275000,
+    g9 == 3 ~ 425000,
+    g9 == 4 ~ 650000,
+    g9 == 5 ~ 1000000,
+    g9 == 6 ~ 1600000,
+    g9 == 7 ~ 3500000,
+    g9 == 8 ~ 6000000
+  ))
+
+# Ingreso hogar total (con estimacion de ingresos continuos)
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(ingreso_hogar_completo = ifelse(g8 == 1, g8_monto, tramo_ingresos_continuo))
+
+# Ingresos hogar por tramo de ingreso 
+
+movid_2022$tramo_ingresos_hogar_completo <- cut(movid_2022$ingreso_hogar_completo,
+                           include.lowest = TRUE,
+                           right = TRUE,
+                           ordered_result = TRUE,
+                           labels = levels(haven::as_factor(movid_2022$g9))[1:8],
+                           breaks = c(0,
+                                      200000, 
+                                      350000, 
+                                      500000, 
+                                      800000, 
+                                      1200000, 
+                                      2000000, 
+                                      5000000,
+                                      Inf))
+
+# Se agrega categoria NS/NR a la clasificacion anterior
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(tramo_ingresos_hogar_completo = ifelse(is.na(tramo_ingresos_hogar_completo), 
+                                                "NS/NR", 
+                                                as.character(tramo_ingresos_hogar_completo)))
+# Se transforma en factor
+movid_2022$tramo_ingresos_hogar_completo <- 
+  factor(movid_2022$tramo_ingresos_hogar_completo, 
+         levels = c(levels(haven::as_factor(movid_2022$g9))[1:8], "NS/NR"))
+
+# Variable final con el tramo de ingresos del hogar completo (visualizacion)
+movid_2022 |> group_by(tramo_ingresos_hogar_completo) |>  tally()
+
+
+# Enfermedad cronica ------------------------------------------------------
+
+# IMPORTANTE: La pregunta de enfermedad crónica en año 2020 (c1) y 2022 (b2) difiere entre cuestionarios. 
+# Se consideraron condiciones de salud mental como enfermedad crónica. 
+
+# Personas con enfermedad cronica. 1 = 1  o más enfermedad cronicas / 0 = Sin enfermedad crónica. 
+movid_2022 <- 
+  movid_2022 %>% 
+  mutate(cronica_d = ifelse(b2_a == 1 | b2_b == 1 | b2_c == 1  | b2_d == 1 |
+                            b2_e == 1 | b2_f == 1 | b2_g == 1  | b2_h == 1 |
+                            b2_i == 1 | b2_j == 1 | b2_k == 1  | b2_i == 1, 1, 0))
+
+movid_2022 |> group_by(cronica_d) |> tally()
+# Region ------------------------------------------------------------------
+
+# # Ordenando region (no funciona)
+# movid_2022$region <- 
+#   ordered(movid_2022$region, 
+#           levels = c(15, 1, 2, 3, 4, 5 ,6 ,7, 16, 8 , 9, 14, 10, 11, 12, 13), 
+#           labels=c("Región de Arica y Parinacota", "Región de Tarapacá", "Región de Antofagasta", 
+#                    "Región de Atacama", "Región de Coquimbo","Región de Valparaíso", "Región de O'Higgins",                     
+#                    "Región del Maule", "Región de Ñuble", "Región del Bío Bío", "Región de la Araucanía",                  
+#                    "Región de los Ríos", "Región de los Lagos", "Región de Aysén",  "Región de Magallanes y Antártica Chilena",
+#                    "Región Metropolitana de Santiago"))          
+
+movid_2022 %>% group_by(region) %>% tally()
+
+# Región Poblacion
+movid_2022 <- movid_2022 %>% mutate(region_d = as.factor(ifelse(region == 13, "RM", "Otra region")))
+movid_2022 %>% group_by(region_d) %>% tally()
+
+
+# Medios de información ---------------------------------------------------
+
+## Transformar d11  y desagregaciones a dummy de 0 y 1. 
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(across(starts_with("d11"), ~ifelse(is.na(.), 0, 1), .names = "{.col}_d"))
+
+## Nuevas variables dummies para reconocer medios de informacion
+
+# Medios tradicionales: 1. Radio, 2. Television abierta, 3. diarios impresos o digitales. 
+# RRSS: 4. Redes sociales
+# Sitios noticias de internet: 5. Sitios noticias de internet
+# Otras paginas web: 6. Otras paginas web
+# Otro : 7. Otro
+# NS/NR: 8. No sabe, 9. No responde
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(mi_tradicionales = as.factor(ifelse(d11_1_d == 1 | d11_2_d == 1 | d11_3_d == 1, 1, 0)),
+         mi_rss = as.factor(ifelse(d11_4_d == 1, 1, 0)),
+         mi_web_noticias = as.factor(ifelse(d11_5_d == 1, 1, 0)),
+         mi_web_otras = as.factor(ifelse(d11_6_d == 1, 1, 0)),
+         mi_otras = as.factor(ifelse(d11_7_d == 1, 1, 0))) 
+
+## Se crea variable que revisa si la persona se informa por medios tradicionales, por internet, o ambos
+
+# Medios tradicionales: 1. Radio, 2. Television abierta, 3. diarios impresos o digitales. 
+# Internet:  4. Redes sociales, 5. Sitios noticias de internet, 6. Otras paginas web
+# Ambos: Medios tradicionales e internet
+# Otro/NS/NR : 7. Otro, 8. No sabe, 9. No responde
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(mi_web_o_tradicionales = as.factor(case_when(
+    mi_tradicionales == 1 & (mi_rss == 1 | mi_web_noticias == 1 | mi_web_otras == 1) ~ "Ambos",
+    mi_tradicionales == 1 ~ "Tradicionales",
+    mi_rss == 1 | mi_web_noticias == 1 | mi_web_otras == 1 ~ "Internet",
+    TRUE ~ "Otros/NS/NR")))
+
+
+#  ++ Creación variables dependientes ----------------------------------------
+
+
+# Antivacunas -------------------------------------------------------------
+
+## d8.h Personas que estan en contra las vacunas en general. 
+
+# Recordar que esta pregunta solo se hizo a personas que no tienen su esquema de vacunación completo 
+# y  que  es poco o nada probable que se vacunen en las próximas dos semanas (79 personas en toda la muestra)
+
+movid_2022 |> group_by(d8_h) |> tally()
+
+# Ahora bien, se puede identificar a este grupo de "anti-vacunas" como aquellos que
+# 1. no se han vacunado contra el coronavirus y 2. manifestan estar en contra de las vacunas en general. 
+# IMPORTANTE : SOLO 13 PERSONAS EN LA MUESTRA. 
+
+movid_2022 |> filter(d8_h == 1) |> group_by(d8_h) |> tally()
+
+# Si bien no será un grupo  representantivo estadisticamente, se puede construir la variable "antivacunas"
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(antivacunas = case_when(d8_h == 1  ~ "Antivacunas",
+                                 TRUE ~ "Acepta vacunas"))
+movid_2022 |> group_by(antivacunas) |> tally()
+
+# D12  Opinion vacunacion -------------------------------------------------
+
+# Se recodifica para disminuir los IC.
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(across(starts_with("d12_"), 
+                ~case_when(. %in% c(1:2) ~ "De acuerdo o muy de acuerdo",
+                           . %in% c(3) ~ "Indiferente",
+                           . %in% c(4:5) ~ "En desacuerdo o muy en desacuerdo",
+                           . %in% c(8:9) ~ "NS/NR"),
+                .names = "{.col}_recoded"))
+
+# Comprobacion
+movid_2022 |> select(starts_with("d12_") & ends_with("recoded"))
+
+
+# E1: Modulo social -----------------------------------------------------------
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(across(starts_with("e1_"), 
+                ~case_when(. %in% c(1:2) ~ "De acuerdo o muy de acuerdo",
+                           . %in% c(3) ~ "Indiferente",
+                           . %in% c(4:5) ~ "En desacuerdo o muy en desacuerdo",
+                           . %in% c(8:9) ~ "NS/NR"),
+                .names = "{.col}_recoded"))
+
+# Comprobacion
+movid_2022 |> select(starts_with("e1_") & ends_with("recoded"))
+
+
+# Disposición vacunación anual --------------------------------------------
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(d13_recoded = case_when(d13 %in% c(1:2) ~ "Muy o bastante dispuesto",
+                                 d13 %in% c(3) ~ "Algo dispuesto",
+                                 d13 %in% c(4:5) ~ "Poco o nada dispuesto",
+                                 d13 %in% c(8:9) ~ "NS/NR"))
+movid_2022 |> group_by(d13_recoded) |> tally()
+
+
+# D14 Opinion vacunación en niños -----------------------------------------
+
+# Se recodifica para disminuir los IC.
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(d14_recoded = case_when(d14 %in% c(1:2) ~ "De acuerdo o muy de acuerdo",
+                                 d14 %in% c(3) ~ "Indiferente",
+                                 d14 %in% c(4:5) ~ "En desacuerdo o muy en desacuerdo",
+                                 d14 %in% c(8:9) ~ "NS/NR"))
+movid_2022 |> group_by(d14_recoded) |> tally()
+
+
+
+# C7 respuesta a contacto estrecho ----------------------------------------
+
+
+# Posibles respuestas (se recodifican para poder ser sumadas)
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c7_1 = if_else(c7_1 == 1, 1, 0),
+         c7_2 = if_else(c7_2 == 2, 1, 0), # Se aislaría c7_2 == 2
+         c7_3 = if_else(c7_3 == 3, 1, 0)) # Utilizaría mascarilla c7_3 == 3
+
+# *Tuve que usar NA como referencia para que funcionara el ifelse
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c7_1 = if_else(is.na(c7_1), 0, 1), # No haría nada c7_1 == 1
+         c7_2 = if_else(is.na(c7_2), 0, 1), # Se aislaría c7_2 == 2
+         c7_3 = if_else(is.na(c7_3), 0, 1), # Utilizaría mascarilla c7_3 == 3
+         c7_4 = if_else(is.na(c7_4), 0, 1),
+         c7_5 = if_else(is.na(c7_5), 0, 1),
+         c7_6 = if_else(is.na(c7_6), 0, 1)) 
+
+# Se haría un un test (test rapido  auto aplicado, aplicado por otro o PCR)
+
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(c7_realizar_test = ifelse(c7_4 == 1 | c7_5 == 1 | c7_6 == 1, 1, 0))
+
+# Comprobación
+movid_2022 |> group_by(c7_1) |> tally()
+movid_2022 |> group_by(c7_2) |> tally()
+movid_2022 |> group_by(c7_3) |> tally()
+movid_2022 |> group_by(c7_realizar_test) |> tally()
+
+## Creación de un indice de respuesta a contacto estrecha
+# Cada una de las acciones descrita anteriormente suma un punto al indice. 
+movid_2022 <- 
+  movid_2022 |> 
+  mutate(indice_respuesta_contacto_estrecho = ifelse(c7_1 == 1, 0, c7_2+c7_3+c7_realizar_test))
+
+# Comprobación
+movid_2022 |> group_by(indice_respuesta_contacto_estrecho) |> tally()
+
+
+
+#  ++ Creación de los objetos survey ------------------------------------------
+
+## Usando paquete srvyr
+
+movid_2022_s <- 
+  movid_2022 %>% 
+  as_survey_design(ids = 1, # No cluster
+                   probs = NULL, # Probabilidad de los cluster
+                   strata = NULL, # Formula con los estratos
+                   weights = fact_exp)
+
+## Usando paquete survey
+
+# movid_2022_s <- svydesign(id = ~1, # No cluster
+#                           probs = NULL, # Probabilidad de los cluster
+#                           strata = NULL, # Formula con los estratos
+#                           weights = ~fact_exp, 
+#                           data = movid_2022)
+
+
+```
+
+```{r preparacion_bbdd_2020, include=FALSE}
+#  ++ Lectura BBDD ------------------------------------------------------------
+
+## Lectura bases 
+movid_2020 <- read_dta("./input/2020/MOVID-IMPACT.dta")
+
+## Limpieza nombres columnas 
+movid_2020 <- janitor::clean_names(movid_2020)
+
+## Selecciona a las personas efectivamente entrevistadas de la bbdd
+movid_2020 <- movid_2020 %>% filter(entrevistado == 1)
+
+
+
+
+
+# ++ Variables independientes ------------------------------------------------
+
+
+# Sexo --------------------------------------------------------------------
+
+# 1 hombre, 2 mujer
+movid_2020 |> group_by(sexo) |> tally()
+
+
+# Nivel educacional -------------------------------------------------------
+
+# Opcion 1
+movid_2020 <- movid_2020%>% 
+  mutate(educ_2 = as.factor(case_when(
+    a8a == 1 | a8a == 2 ~ "Nunca asistió",
+    a8a == 3 | a8a == 4 ~ "Básica",
+    a8a == 5 | a8a == 6 ~ "Media",
+    a8a == 7 | a8a == 8 ~ "Superior",
+    a8a == 9 ~ "Postgrado",
+    TRUE ~ "NS/NR")))
+
+# Opcion 2: Se recomienda usar esta por IC
+movid_2020 <- movid_2020 %>% 
+  mutate(educ_3 = as.factor(case_when(
+    a8a == 1 | a8a == 2 | a8a ==  3 |a8a == 4 ~ "Básica o nunca asistió",
+    a8a == 5 | a8a ==6 ~ "Media",
+    a8a == 7 | a8a ==8 | a8a == 9 ~ "Superior o postgrado",
+    TRUE ~ "NS/NR")))
+movid_2020 |> group_by(educ_3) |> tally()
+
+# Prevision de salud ------------------------------------------------------
+
+movid_2020 <- 
+  movid_2020 %>% 
+  mutate(prevision = as.factor(
+    case_when(
+      b2 == 1 ~ "Fonasa",
+      b2 == 2 ~ "Isapre",
+      b2 == 5 ~ "Ninguna", 
+      b2 == 3 | b2 == 4 ~ "Otra",
+      b2 == 8 | b2 == 9 ~ "NS/NR")))
+
+movid_2020 |> group_by(prevision) |> tally()
+
+
+# Ocupados ----------------------------------------------------------------
+
+movid_2020 <- 
+  movid_2020 %>% 
+  mutate(
+    ocupacion_all = as.factor(case_when(
+      g1 == 1 | g2 == 1 | g3 != 10 ~ "ocupados", 
+      g4 == 2 & g5 == 1 ~ "busca_trabajo_primera_vez",
+      g1 == 2 & g2 == 2 & g3 == 10 & g4  == 1 & g5 == 1 ~ "cesante",
+      TRUE ~ "fuera_fuerza_trabajo")),
+    ocupacion_d = as.factor(case_when(
+      g1 == 1 | g2 == 1 | g3 != 10 ~ "ocupados",
+      (g4 == 2 & g5 == 1) | (g1 == 2 & g2 == 2 & g3 == 10 & g4  == 1 & g5 == 1) ~ "desocupados",
+      TRUE ~ "fuera_fuerza_trabajo")))
+
+# Importante: La desagregacion por cesante  y busca trabajo por primera vez no es 
+# posible hacerla en la encuesta 2022. 
+
+
+### Fuerza de trabajo (ocupados y personas que buscan trabajo mayores de 15 anos)
+## Ocupados 
+# g1 == 1 |(g1 == 2 & g2 == 1) | (g1 == 2 & g2 == 2 & g3 != 10) 
+## Desocupados (Buscan trabajo por primera vez  y Cesantes)
+# Buscan trabajo por primera vez
+# g4 == 2 & g5 == 1
+# Cesantes  
+# g1 == 2 & g2 == 2 & g3 == 10 & g4  == 1 & g == 1
+
+
+
+# Tramo etario ------------------------------------------------------------
+
+# Opcion 1: Desagregacion completa
+movid_2020$edad_rec <- cut(movid_2020$edad,
+                           include.lowest = TRUE,
+                           right = TRUE,
+                           breaks = c(18, 24, 34, 44, 54, 64, 80, Inf)
+)
+
+movid_2020 |> group_by(edad_rec) |> tally()
+
+# Opcion 2: Desagregacion reducida (recomendable por IC)
+movid_2020 <- movid_2020 %>% 
+  mutate(edad_2 = as.factor(case_when(
+    edad < 30 ~ "18 a 29 años",
+    edad >= 30 & edad < 60 ~ "30 a 59 años",
+    edad >= 60 ~ "60 años o más"
+  )))
+
+
+
+# Nivel de ingresos -------------------------------------------------------
+
+# Se pregunta por ingresos del hogar, pero no se sabe de cuantas personas es el hogar, por lo tanto
+# No se puede obtener ingreso percapita. 
+# Por lo tanto, no se recomienda usar esta variable para análisis. 
+
+# g47 responde nivel de ingresos continuo del hogar ? si/no
+movid_2020 |> group_by(g47) |> tally()
+
+# g47 monto ingresos continuo
+movid_2020 |> group_by(g47_monto) |> tally()
+
+# g48 Tramo ingresos
+movid_2020 |> group_by(g48) |> tally()
+
+# Conversion de tramos de ingresos a media de ingresos (variable continua)
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(tramo_ingresos_continuo = case_when(
+    g48 == 1 ~ 100000,
+    g48 == 2 ~ 275000,
+    g48 == 3 ~ 425000,
+    g48 == 4 ~ 650000,
+    g48 == 5 ~ 1000000,
+    g48 == 6 ~ 1600000,
+    g48 == 7 ~ 3500000,
+    g48 == 8 ~ 6000000
+  ))
+
+# Ingreso hogar total (con estimacion de ingresos continuos)
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(ingreso_hogar_completo = ifelse(g47 == 1, g47_monto, tramo_ingresos_continuo))
+
+# Ingresos hogar por tramo de ingreso 
+
+movid_2020$tramo_ingresos_hogar_completo <- cut(movid_2020$ingreso_hogar_completo,
+                                                include.lowest = TRUE,
+                                                right = TRUE,
+                                                ordered_result = TRUE,
+                                                labels = levels(haven::as_factor(movid_2020$g48))[1:8],
+                                                breaks = c(0,
+                                                           200000, 
+                                                           350000, 
+                                                           500000, 
+                                                           800000, 
+                                                           1200000, 
+                                                           2000000, 
+                                                           5000000,
+                                                           Inf))
+
+# Se agrega categoria NS/NR a la clasificacion anterior
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(tramo_ingresos_hogar_completo = ifelse(is.na(tramo_ingresos_hogar_completo), 
+                                                "NS/NR", 
+                                                as.character(tramo_ingresos_hogar_completo)))
+# Se transforma en factor
+movid_2020$tramo_ingresos_hogar_completo <- 
+  factor(movid_2020$tramo_ingresos_hogar_completo, 
+         levels = c(levels(haven::as_factor(movid_2020$g48))[1:8], "NS/NR"))
+
+# Variable final con el tramo de ingresos del hogar completo (visualizacion)
+movid_2020 |> group_by(tramo_ingresos_hogar_completo) |>  tally()
+
+
+# Enfermedad cronica ------------------------------------------------------
+
+# IMPORTANTE: La pregunta de enfermedad crónica en año 2020 (c1) y 2022 (b2) difiere entre cuestionarios. 
+# Se consideraron condiciones de salud mental como enfermedad crónica. 
+
+# Reemplazar NA por 0 para que funcione bien ifelse
+
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(across(starts_with("c1"), ~ifelse(is.na(.), 0, .)))
+
+# Personas con enfermedad cronica. 1 = 1  o más enfermedad cronicas / 0 = Sin enfermedad crónica. 
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(cronica_d = ifelse(c1_1 == 1 | c1_2 == 2 | c1_3 == 3  | c1_4 == 4 |
+                            c1_5 == 5 | c1_6 == 6, 1, 0))
+movid_2020 |> group_by(cronica_d) |> tally()
+
+# Region ------------------------------------------------------------------
+
+# Ordenando region (no funciona)
+# movid_2020$region <- 
+#   ordered(movid_2020$region, 
+#           levels = c(15, 1, 2, 3, 4, 5 ,6 ,7, 16, 8 , 9, 14, 10, 11, 12, 13), 
+#           labels=c("Región de Arica y Parinacota", "Región de Tarapacá", "Región de Antofagasta", 
+#                    "Región de Atacama", "Región de Coquimbo","Región de Valparaíso", "Región de O'Higgins",                     
+#                    "Región del Maule", "Región de Ñuble", "Región del Bío Bío", "Región de la Araucanía",                  
+#                    "Región de los Ríos", "Región de los Lagos", "Región de Aysén",  "Región de Magallanes y Antártica Chilena",
+#                    "Región Metropolitana de Santiago"))          
+
+movid_2020 %>% group_by(region) %>% tally()
+
+# Región Poblacion
+movid_2020 <- movid_2020 %>% mutate(region_d = as.factor(ifelse(region == 13, "RM", "Otra region")))
+movid_2020 %>% group_by(region_d) %>% tally()
+
+#  ++ Creación variables dependientes ----------------------------------------
+
+# F3: Modulo social -----------------------------------------------------------
+
+# Ojo, las escalas estan con numeracion al reves que el año 2022.
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(across(starts_with("f3_"), 
+                ~case_when(. %in% c(4:5) ~ "De acuerdo o muy de acuerdo",
+                           . %in% c(3) ~ "Indiferente",
+                           . %in% c(1:2) ~ "En desacuerdo o muy en desacuerdo",
+                           . %in% c(8:9) ~ "NS/NR"),
+                .names = "{.col}_recoded"))
+
+# Comprobacion
+movid_2020 |> select(starts_with("f3_") & ends_with("recoded"))
+
+
+
+
+# Pospuso tratamiento -----------------------------------------------------
+
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(pospuso_tratamiento = case_when(
+    e1_1 == 1 | e1_2 == 1 | e1_3 == 1 | e1_4 == 1 | e1_5 == 1 | e1_6 == 1 ~ "Pospuso tratamiento",
+    e1_1 == 2 | e1_2 == 2 | e1_3 == 2 | e1_4 == 2 | e1_5 == 2 | e1_6 == 2 ~ "No  pospuso tratamiento",
+    e1_1 >= 8 | e1_2 >= 8 | e1_3 >= 8 | e1_4 >= 8 | e1_5 >= 8 | e1_6 >= 8 ~ "NS/NR"
+  ))
+
+
+# Razon pospuso tratamiento -----------------------------------------------
+
+# Razon por la que pospuso el tratamiento para el primer tratamiento que pospuso siguiendo el orden de la siguiente lista
+# basada en C1:Diabetes, hipertension, infarto, enfermedad respiratorioa, depresión u otra. 
+
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(razon_pospuso_tratamiento = case_when(
+    e2_1 >= 1 ~ e2_1,
+    e2_2 >= 1 ~ e2_2,
+    e2_3 >= 1 ~ e2_3,
+    e2_4 >= 1 ~ e2_4,
+    e2_5 >= 1 ~ e2_5,
+    e2_6 >= 1 ~ e2_6
+  ))
+
+movid_2020 |> group_by(razon_pospuso_tratamiento) |> tally()
+
+
+# Indice de salud mental --------------------------------------------------
+
+# El PHQ-4, como una herramienta de detección rápida para la depresión y la ansiedad, se puede utilizar para construir un índice de salud mental rudimentario. Aquí está una manera de cómo se puede hacer esto:
+#   
+# El PHQ-4 consta de cuatro preguntas con cuatro opciones de respuesta: "Nada en absoluto", "Varios días", "Más de la mitad de los días", y "Casi todos los días", que se puntúan de 0 a 3 respectivamente.
+# 
+# Por lo tanto, el rango total de puntajes posibles para el PHQ-4 va de 0 (sin síntomas de ansiedad o depresión) a 12 (síntomas muy severos de ansiedad y depresión).
+# 
+# La interpretación generalmente aceptada de los puntajes del PHQ-4 es la siguiente:
+#   
+# Un puntaje de 0 a 2 indica no hay síntomas de ansiedad ni depresión.
+# Un puntaje de 3 a 5 indica posibles síntomas de ansiedad o depresión.
+# Un puntaje de 6 a 8 indica síntomas moderados de ansiedad y/o depresión.
+# Un puntaje de 9 a 12 indica síntomas severos de ansiedad y/o depresión.
+# 
+# Entonces, este puntaje puede ser utilizado como un índice básico de salud mental. Sin embargo, es importante recordar 
+# que este índice solo ofrece una visión general de la presencia y gravedad de los síntomas de ansiedad y depresión. 
+# No aborda otros aspectos de la salud mental y no debe ser utilizado para diagnosticar trastornos de ansiedad o depresión. 
+# Para un diagnóstico y evaluación completos de la salud mental, se necesita un profesional de salud mental.
+
+
+
+# En este caso, se va a IMPUTAR la no respuesta con la moda para cada pregunta 
+
+
+# Imputacion de NS/NR
+
+# Obtener la moda sin considera NS/NR
+moda_c2_1 <- moda(movid_2020$c2_1[movid_2020$c2_1 != 8 & movid_2020$c2_1 != 9])
+moda_c2_2 <- moda(movid_2020$c2_2[movid_2020$c2_2 != 8 & movid_2020$c2_2 != 9])
+moda_c2_3 <- moda(movid_2020$c2_3[movid_2020$c2_3 != 8 & movid_2020$c2_3 != 9])
+moda_c2_4 <- moda(movid_2020$c2_4[movid_2020$c2_4 != 8 & movid_2020$c2_4 != 9])
+
+# Reemplazar los valores 8 y 9 con la moda
+movid_2020 <- movid_2020 |> 
+  mutate(c2_1 = case_when(c2_1 == 8 ~ moda_c2_1,
+                          c2_1 == 9 ~ moda_c2_1,
+                          TRUE ~ c2_1),
+         c2_2 = case_when(c2_2 == 8 ~ moda_c2_2,
+                          c2_2 == 9 ~ moda_c2_2,
+                          TRUE ~ c2_2),
+         c2_3 = case_when(c2_3 == 8 ~ moda_c2_3,
+                          c2_3 == 9 ~ moda_c2_3,
+                          TRUE ~ c2_3),
+         c2_4 = case_when(c2_4 == 8 ~ moda_c2_4,
+                          c2_4 == 9 ~ moda_c2_4,
+                          TRUE ~ c2_4))
+
+# Calcular el indice con los valores imputados
+movid_2020 <-
+  movid_2020 |>
+  mutate(phq_4 = as.numeric(c2_1+c2_2+c2_3+c2_4-4)) # Se resta 4 porque la escala original va de 0 a 3, no de 1 a 4 como en esta BBDD. 
+
+print(movid_2020 |> group_by(phq_4) |> tally(), n = 13)
+
+
+
+# Ahora se presenta en una escala categorica
+
+movid_2020 <- 
+  movid_2020 |> 
+  mutate(phq_4_categorico = case_when(phq_4 <= 2 ~ "No hay síntomas de ansiedad ni depresión",
+                                      phq_4 <= 5 ~ "Posibles síntomas de ansiedad o depresión",
+                                      phq_4 <= 8 ~ "Síntomas moderados de ansiedad y/o depresión",
+                                      phq_4 <= 12 ~ "Síntomas severos de ansiedad y/o depresión"))
+
+
+
+
+#  ++ Creación de los objetos survey ------------------------------------------
+
+## Usando paquete srvyr
+
+movid_2020_s <- 
+  movid_2020 %>% 
+  as_survey_design(ids = 1, # No cluster
+                   probs = NULL, # Probabilidad de los cluster
+                   strata = NULL, # Formula con los estratos
+                   weights = factor_expansion)
+
+## Usando paquete survey
+
+# movid_2020_s <- svydesign(id = ~1, 
+#                          weights = ~fact_exp, 
+#                          data = movid_2020,
+#                          strata = NULL,
+#                          fpc= NULL,
+#                          probs = NULL)
+
+```
+
+
+
+
+## Introducción
+
+Los proyectos Monitoreo Nacional de Síntomas y Prácticas COVID-19 (MOVID-19) y CoV-IMPACT-C: "Impacto del COVID-19 en Chile" surgen como respuesta a la pandemia que ha generado una emergencia sanitaria, económica y social a nivel global,  teniendo por objetivo analizar desde una perspectiva transdiciplinaria la evolución de la pandemia, la respuesta del sistema de salud y la política pública, además de las consecuencias sanitarias y sociales, considerando las múltiples interrelaciones entre ellas. 
+
+Las encuestas MOVID-IMPACT, con representatividad nacional, se desarrollan en el marco de estos proyectos, con el propósito de levantar información relevante sobre el comportamiento de las personas durante la crisis sanitaria referente a diversas temáticas como vacunación, seguimiento de normas o acceso a salud y empleo. 
+
+
+## Metodología de la encuesta
+
+La encuesta MOVID-IMPACT se llevó a cabo en dos fases: diciembre de 2020 y junio de 2022, mediante entrevistas telefónicas con un representante de cada hogar. La muestra es representativa de la población adulta urbana mayor de 18 años, que reside en viviendas particulares de áreas urbanas en Chile. La metodología consistió en un estudio transversal basado en un marco muestral secundario, derivado del último Censo de Población y Viviendas del INE en 2017. Se lograron muestras de 1.261 y 1.247 personas para 2020 y 2022, respectivamente.
+
+El diseño muestral fue estratificado según área geográfica y tamaño poblacional, con un total de 47 estratos. Dentro de cada estrato, se seleccionaron viviendas mediante muestreo aleatorio sistemático y se encuestó a un adulto elegido al azar. El tamaño muestral se estableció en 1.200 entrevistas efectivas para limitar el error muestral al 2,8% a nivel nacional urbano. La muestra se sobredimensionó en aproximadamente un 80% para compensar posibles pérdidas por no respuesta.
+
+Los criterios de inclusión consistieron en ser mayor de 18 años y residente en viviendas particulares urbanas. Los criterios de exclusión abarcaron residentes en Áreas de Difícil Acceso (ADA) y hogares sin teléfono fijo o móvil. Para incrementar la representatividad de los resultados, se aplicaron factores de expansión, corrección por no respuesta y post-estratificación.
+
+Los cuestionarios utilizados en ambas encuestas fueron distintos, ya que se diseñaron para diferentes etapas de la pandemia. La principal diferencia radicó en que la encuesta de 2022 se enfocó en analizar el proceso de vacunación de la población chilena. Ambos cuestionarios trataron temas como demografía, preexistencias, acceso a atención médica COVID-19 y no COVID-19, aspectos sociales y empleo, pero con variaciones en las preguntas, según la relevancia en el avance de la pandemia.
+
+Para mayor detalle sobre la metodología se puede revisar la documentación del proyecto en el siguiente [enlace](https://movid-impact.netlify.app/doc/).
+
+## Análisis por temática 
+
+### 1. Discontinuidad de tratamientos en pacientes crónicos
+
+La rápida expansión de la enfermedad causada por el virus de covid-19 puso al límite al sistema de salud en el país, teniendo que relocalizar recursos y personal de salud a la emergencia, postergando otras atenciones. 
+
+En la encuesta del año 2020 se consultó a las personas que padecían alguna enfermedad crónica si habían tenido que postergar algún control o atención de salud en los últimos tres meses (e1), identificando que el 40% (IC95% 35.9-45.0) de las personas  habían tenido que postergar algun tratamiento entre septiembre y diciembre de 2020. 
+
+No se observaron diferencias significativas por sexo y tramo etario con relación a esta variable.  
+
+```{r pospuso_tratamiento, echo=FALSE}
+
+pospuso_tratamiento <- 
+  movid_2020_s |> 
+  filter(cronica_d == 1) |> 
+  group_by(pospuso_tratamiento) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+pospuso_tratamiento_sexo <- 
+movid_2020_s |> 
+  filter(cronica_d == 1) |> 
+  group_by(sexo, pospuso_tratamiento) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+pospuso_tratamiento_edad <- 
+movid_2020_s |> 
+  filter(cronica_d == 1) |> 
+  group_by(edad_2, pospuso_tratamiento) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(pospuso_tratamiento_sexo,
+                       titulo = "Personas con enfermedad crónica  que pospusieron tratamiento según sexo")
+
+graph_barras_bivariado(pospuso_tratamiento_edad,
+                       titulo = "Personas con enfermedad crónica  que pospusieron tratamiento según tramo etario")
+```
+
+Respecto a las razones por las que se pospuso  el control o atención de salud, se destacan dos razones principales: "Por miedo a contagiarse por COVID-19" (31.8%, IC95% 24.1-39.4), y  "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado" (51.2%, IC95% 43.1-59.3),  por lo que se puede reconocer que al menos el 80% de las postergaciones tendrían alguna relación con la crisis sanitaria. 
+
+```{r razon_pospuso_tratamiento, echo=FALSE}
+
+razon_pospuso_tratamiento <- 
+  movid_2020_s |> 
+  filter(cronica_d == 1, pospuso_tratamiento == "Pospuso tratamiento") |> 
+  group_by(razon_pospuso_tratamiento) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(razon_pospuso_tratamiento,
+                       titulo = "Razón por la que se pospuso el tratamiento")
+```
+
+Al revisar con mayor detalle los tratamientos pospuestos, se identifica que el 22.9% (IC95% 18.9-26.9) de los pacientes crónicos tuvieron que postergar una consulta médica, un 13.1% (IC95% 9.9-16.3) tuvo que postergar algún examen de laboratorio o imagenológico, y, un 1.9% (IC95% 0.6-3.1) tuvo que posponer una cirugía electiva.
+
+```{r detalle_tratamientos_pospuestos, echo=FALSE}
+
+# Pacientes cronicos que tuvieron que posponer alguna de las sigientes atenciones de salud planificadas
+# en los últimos 3 meses. 
+
+# Consultas médicas
+postergacion_consultas_medicas <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_1), e5_1 %in% c(1:2)) |> 
+  group_by(e5_1) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Toma de examenes de laboratorio o imagenológicos
+postergacion_examenes <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_4), e5_4 %in% c(1:2)) |> 
+  group_by(e5_4) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Cirugías electivas
+postergacion_cirugias_electivas <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_8), e5_8 %in% c(1:2)) |> 
+  group_by(e5_8) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+```
+
+Al desagregar por previsión de salud (solo Fonasa e Isapre), no se observaron mayores diferencias. Por ejemplo, entre las personas pertenecientes a FONASA, un 23.0% (IC95% 18.5-27.6) postergo consulta médica, mientras que un 24.8% (IC95% 14.6-35.0) pospuso tratamiento entre las personas pertenecientes a Isapre.  
+
+```{r tratamientos_pospuestos_prevision_salud, echo=FALSE}
+
+# Consultas médicas segun fonasa  o isapre en pacientes crónicos
+postergacion_consultas_medicas_prevision <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_1), e5_1 %in% c(1:2), prevision %in% c("Fonasa", "Isapre")) |> 
+  group_by(prevision, e5_1) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Toma de examenes de laboratorio o imagenológicos segun fonasa  o isapre en pacientes crónicos
+postergacion_examenes_prevision <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_4), e5_4 %in% c(1:2), prevision %in% c("Fonasa", "Isapre")) |> 
+  group_by(prevision, e5_4) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Cirugías electivas segun fonasa  o isapre en pacientes crónicos
+postergacion_cirugias_electivas_prevision <- 
+movid_2020_s |> 
+  filter(cronica_d == 1, !is.na(e5_8), e5_8 %in% c(1:2), prevision %in% c("Fonasa", "Isapre")) |> 
+  group_by(prevision, e5_8) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(postergacion_consultas_medicas_prevision,
+                       titulo = "Personas con enfermedad crónica que pospusieron consulta médica según previsión")
+
+```
+
+### 2. Discontinuidad de exámenes diagnósticos asociados a cancer (pap-mamo) 
+
+Con relación a la discontinuidad de examenes diagnósticos asociados a cancer (papanicolau, mamografías u otros en mujeres y antigeno prostaico, colonoscopía  u otros en hombres) se observa que un 9.63% (IC95% 7.0-12.2) de las mujeres  tuvo que posponer algún examen relacionado en los últimos 3 meses (septiembre a diciembre 2020). Las principales razones declaradad fueron porque "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado" y  "Por miedo a contagiarse", sumando más de la mitad de los casos. 
+
+```{r examen_cancer_pospuesto_mujeres, echo=FALSE}
+
+# Disontiuidad  papanicolau, mamografías u otros (solo mujeres)
+examen_cancer_pospuesto_mujeres <- 
+  movid_2020_s |> 
+  filter(!is.na(e5_5), e5_5 %in% c(1:2), sexo == 2) |> 
+  group_by(e5_5) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Razon de la discontinuidad 
+razon_examen_cancer_pospuesto_mujeres <- 
+movid_2020_s |> 
+  filter(e5_5 == 1, sexo == 2, !e6==98) |> 
+  group_by(e6) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+
+graph_barras_univariado(razon_examen_cancer_pospuesto_mujeres,
+                       titulo = "Razón postergación exámenes asociados a cancer en mujeres")
+
+```
+
+En el caso de los hombres,  se reconoce que un 4.3% (IC95% 2.4-6.3) de la población masculina tuvo que posponer algún  examen relacionado a cancer en los últimos 3 meses (septiembre a diciembre 2020). Las principales razones por las que se pospuso el examen fueron "Por miedo a contagiarse" y "Porque el sistema de salud está muy lleno".
+
+```{r examen_cancer_pospuesto_hombres, echo=FALSE}
+
+# Disontiuidad  antigeno prostaico, colonoscopía u otros (solo hombres)
+examen_cancer_pospuesto_hombres <- 
+  movid_2020_s |> 
+  filter(!is.na(e5_6), e5_6 %in% c(1:2), sexo == 1) |> 
+  group_by(e5_6) |>   
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Razon de la discontinuidad 
+razon_examen_cancer_pospuesto_hombres <- 
+movid_2020_s |> 
+  filter(e5_6 == 1, sexo == 1) |> 
+  group_by(e6) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(razon_examen_cancer_pospuesto_hombres,
+                       titulo = "Razón postergación exámenes asociados a cancer en hombres")
+
+```
+
+
+Al respecto, se reconoce que entre las mujeres hubo un mayor número de examenes pospuestos, lo que  podría estar asociado a que una mayor cantidad de la población femenina se realiza examenes preventivos con cierta regularidad. 
+
+También se observa  una diferencia en las razones por las que se pospuso el examen, siendo la principal razón entre las mujeres que "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado", mientras que en los hombres la principal razón fue "Por miedo a contagiarse". En este sentido, podría plantearse que en el caso de las mujeres los examenes fueron pospuestos por razones externas a la voluntad individual, mientas que en el caso de los hombres se habrían pospuesto los examenes por decisión propia principalmente. 
+
+### 3. Discontinuidad del programa de inmunizaciones y control de niño sano
+
+
+### 4. Disposición vacunal en adultos (mayores de 18 años) 
+
+En cuanto a la disposición vacunal en adultos, ya se han realizado distintos análisis de esta temática utilizando los resultados de la encuesta. Por ejemplo, en el "Informe Resultados Encuesta Movid-Impact 2022" (2022), se analizó la disposición vacunal de adultos según tipología de disposición vacunal, utilizando los resultados de la encuesta en su versión 2022. 
+
+A modo de complemento, en el presente informe  se incorporan nuevos elementos que permiten complementar los datos ya expuestos. 
+
+Según los resultados de la encuesta, a junio de 2022 el 96.4% (IC95%  95.0-97.8) de los adultos mayores de 18 años  habría completado su **esquema de vacunación inicial**. 
+
+
+#### Razones por las que no se vacunarían aquellas personas que no tienen su esquema al día 
+
+Adicionalmente, se consultó a aquellos individuos cuyo esquema de vacunación no estaba al día, de acuerdo con los lineamientos establecidos por la autoridad sanitaria. A estas personas se les preguntó sobre la probabilidad de que se vacunaran en las próximas dos semanas, permitiendo así identificar a aquellos que mostraban poca o nula probabilidad de completar su esquema de vacunación. Posteriormente, a este grupo renuente a completar su vacunación, se les solicitó que proporcionaran la o las razones que motivaban su decisión (cada persona podía seleccionar más de una razón).
+
+De esta manera, se identifico que entre las principales razones por las que no se vacunarían estas personas se encontraban: 
+
+1. Preocupación por los posibles efectos de la vacuna
+2. Prefiere esperar a ver que la vacuna sea segura
+3. Estar en contra de las vacunas en general
+4. Incredulidad respecto a la efectividad de la vacuna contra el coronavirus
+
+
+
+```{r razones_no_vacunacion, echo=FALSE}
+
+## ¿Por qué razon no se han vacunado?
+# Solo aquellas personas que en d7 respondiendo que "4. Es poco probable que me vacune" o 
+# "5. No me vacunaría por ningún motivo". 
+
+razones_no_vacunacion <- c("d8_a", "d8_b","d8_c", "d8_d", "d8_e", "d8_f","d8_g", "d8_h", "d8_i")
+
+# Tabulados razones de no vacunacion. OJO, la funcion utilizada esta en script 1
+tabulados_razones_no_vacunacion <- map(razones_no_vacunacion, ~calculo_razones_no_vacunacion(movid_2022_s, .x))
+
+# Seleccion de los principales (principales razones mencioandas) (d, e, f, h)
+tabulados_razones_no_vacunacion_main <- c(tabulados_razones_no_vacunacion[4:6], tabulados_razones_no_vacunacion[8])
+
+
+# Gráficos
+
+graph_barras_univariado(tabulados_razones_no_vacunacion_main[1],
+                       titulo = "Porcentaje de personas que no se vacunarían debido a posibles efectos adversos de la vacuna")
+
+graph_barras_univariado(tabulados_razones_no_vacunacion_main[3],
+                       titulo = "Porcentaje de personas que no se vacunarían debido a que prefieren esperar a ver que la vacuna sea segura")
+
+graph_barras_univariado(tabulados_razones_no_vacunacion_main[4],
+                       titulo = "Porcentaje de personas que no se vacunarían debido a que estan en contra de las vacunas en general")
+
+graph_barras_univariado(tabulados_razones_no_vacunacion_main[2],
+                       titulo = "Porcentaje de personas que no se vacunarían debido a que no están seguras que la vacuna funcioen contra el coronavirus")
+
+```
+
+####  Explorando percepciones y obstáculos respecto a la vacunación contra el COVID-19 
+
+Por otro lado, también se consultó a las personas por distintas opiniones relacionadas al proceso de vacunación, como seguridad de las vacunas o confianza en las autoridades. A continuación se presenta la distribución de algunas de estas preguntas en la población general y desagregada según  sexo, tramo etario y principales medios de información. Al respecto, es importante mencionar que no se desagrego por estado de vacunación ya que la subpoblación no vacunada es muy pequeña en la muestra de la encuesta, lo que aumentaría mucho los intervalos de confianza para dichos cruces. 
+
+En términos generales, se reconoce que el 79,4% (IC95% 76.6-82.1) de la población mayor de 18 años estaría de acuerdo con que las vacunas contra el Covid-19 son seguras.
+
+```{r confianza_vacunas, echo=FALSE}
+
+# Confianza en la seguridad de las vacunas
+confianza_vacunas <- 
+movid_2022_s |> 
+  filter(!d12_1_recoded == "NS/NR") |> 
+  group_by(d12_1_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(confianza_vacunas,
+                       titulo = "Confío en que las vacunas contra el COVID-19 son seguras")
+
+```
+
+Un porcentaje similar 78,1% (IC95% 75.1-81.1) confía en que las autoridades sanitarias toman decisiones sobre la vacunación pensando en el bienestar de la población.
+
+```{r confianza_autoridades_sanitarias, echo=FALSE}
+
+# Confianza en las autoridades sanitarias
+confianza_autoridades_sanitarias <- 
+movid_2022_s |> 
+  filter(!d12_2_recoded == "NS/NR") |> 
+  group_by(d12_2_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(confianza_autoridades_sanitarias,
+graph_barras_univariadotitulo = "Confío en que las autoridades sanitarias toman decisiones sobre la vacunación pensando en el bienestar de la población")
+
+```
+
+##### Importancia  de la vacunación
+
+Se pidió a las personas evaluar su nivel de acuerdo con la siguiente afirmación: "No es necesario vacunarse dado que la nefermedad por coronavirus ya no es tan grave". De las cuales, un 17.4% (IC95% 14.8-20.0) manifestó estar de acuerdo  o muy de acuerdo, es decir, que consideran que (a junio de 2022), esta enfermedad ya no sería  tan grave y por lo tanto no sería necesario vacunarse. 
+
+Esta afirmación podría estar relacionada a los cambios en el escenario epidemiológico del país con la predominancia de cepas distintas a la originada en Wuhan al inicio de la pandemia, un cambio de persepción por la llamada fatiga pandémica o  un cambio en las lineas comunicaciones de distintos medios tras dos años de pandemia, entre otras razones.  
+
+Por el contrario, un 77.4% (IC95% 74.9-80.7) estaría en desacuerdo o muy en desacuerdo con esta afirmación, es decir, consideran que la infección por covid-19 sigue siendo grave y es importante vacunarse. En este sentido, se mantiene un porcentaje similar al de las preguntas anteriores, pudiendo afirmarse que alrededor de un 80% de la población confía en las vacunas, en las autoridades sanitarias y considera necesario vacunarse. 
+
+
+```{r importancia_vacunacion, echo=FALSE}
+
+# Importancia de la vacunación
+importancia_vacunacion <- 
+movid_2022_s |> 
+  filter(!d12_3_recoded == "NS/NR") |> 
+  group_by(d12_3_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(importancia_vacunacion,
+                       titulo = "No es necesario vacunarse dado que la enfermedad por coronavirus ya no es tan grave")
+
+```
+
+
+En términos generales, al desagregar esta pregunta por tramo etario y sexo no se observan  mayores diferencias. 
+
+```{r importancia_vacunacion_edad, echo=FALSE}
+
+# Importancia de la vacunación según tramo etario
+importancia_vacunacion_edad <- 
+movid_2022_s |> 
+  filter(!d12_3_recoded == "NS/NR") |> 
+  group_by(edad_2, d12_3_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(importancia_vacunacion_edad,
+                       titulo = "No es necesario vacunarse dado que la enfermedad por coronavirus ya no es tan grave")
+
+```
+
+
+```{r importancia_vacunacion_sexo, echo=FALSE}
+
+# Importancia de la vacunación según tramo etario
+importancia_vacunacion_sexo <-
+movid_2022_s |> 
+  filter(!d12_3_recoded == "NS/NR") |> 
+  group_by(sexo, d12_3_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(importancia_vacunacion_sexo,
+                       titulo = "No es necesario vacunarse dado que la enfermedad por coronavirus ya no es tan grave")
+
+```
+Asimismo, se exploró si podía existir alguna diferencia según el medio de comunicación principal que usan las personas para informarse. No obstante,  al desagregar por esta variable tampoco se encontraron mayores diferencias. 
+
+```{r importancia_vacunacion_medios, echo=FALSE}
+
+# Importancia de la vacunación según medios de información
+importancia_vacunacion_medios <- 
+movid_2022_s |> 
+  filter(!d12_3_recoded %in% c("NS/NR","Indiferente"), !mi_web_o_tradicionales == "Otros/NS/NR") |> 
+  group_by(mi_web_o_tradicionales, d12_3_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(importancia_vacunacion_medios,
+                       titulo = "No es necesario vacunarse dado que la enfermedad por coronavirus ya no es tan grave")
+
+```
+
+
+#### Disposición a vacunación anual
+
+Por último, se consultó a las personas por su disposición a vacunarse anualmente. Al respecto, un 15.8% (IC95% 13.3-18.4) estaría poco o nada dispuesto a vacunarse, sin identificarse mayores diferencias por sexo. 
+
+```{r disposicion_vacunacion_anual_sexo, echo=FALSE}
+# General 
+
+disposicion_vacunacion_anual <- 
+  movid_2022_s |> 
+  filter(!d13_recoded == "NS/NR") |> 
+  group_by(d13_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Por sexo
+disposicion_vacunacion_anual_sexo <- 
+movid_2022_s |> 
+  filter(!d13_recoded == "NS/NR") |> 
+  group_by(sexo, d13_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(disposicion_vacunacion_anual_sexo,
+                       titulo = "Disposición a vacunarse anualmente")
+
+```
+
+Sin embargo, si se evidencian diferencias según tramo etario. Mientras que entre los adultos de 60 años o más solamente un 9.1% (IC95% 6.2-12.0) estaría poco o nada dispuesto a vacunarse anualmente contra el Covid-19, esta cifra se eleva a un 21.0% (IC95% 13.7-28.3)  en el caso de los adultos entre 18 y 29 años.
+
+```{r disposicion_vacunacion_anual_sexo, echo=FALSE}
+
+# Por edad
+disposicion_vacunacion_anual_edad <- 
+movid_2022_s |> 
+  filter(!d13_recoded == "NS/NR") |> 
+  group_by(edad_2, d13_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(disposicion_vacunacion_anual_edad,
+                       titulo = "Disposición a vacunarse anualmente")
+
+```
+
+### 5. Disposición vacunal en niños (desde los 6 meses considerando grupos de edad y diferentes vacunas) 
+
+Específicamente respecto a la disposición vacunal en niños, en la versión de la encuesta del año 2022 se consultó a las personas  ¿Qué tan de acuerdo o en desacuerdo está Ud. con que los niños y niñas de 3 años o más se vacunen todos los años contra el COVID-19 con vacunas aprobadas por las autoridades sanitarias? (d14). Frente a esta consulta, el 66.8% (IC95% 63.4-70.3) de las personas  estaría de acuerdo o muy de acuerdo y un 20.5% (IC95% 17.6-23.3) estaría en desacuerdo o muy en desacuerdo. 
+
+```{r vacunacion_ninos, echo=FALSE}
+
+# Importancia de la vacunación en ninos 
+vacunacion_ninos <- 
+movid_2022_s |> 
+  filter(!d14_recoded %in% c("NS/NR")) |> 
+  group_by( d14_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(disposicion_vacunacion_anual_edad,
+                       titulo = "Disposición a vacunar anualmente a niños de 3 años o más")
+
+```
+
+Al desagregar por sexo no se obtuvieron diferencias significativas (se excluyó categoría neutra "ni de acuerdo ni en desacuerdo").
+
+```{r vacunacion_ninos_sexo, echo=FALSE}
+
+# Importancia de la vacunación en ninos según sexo (se filtran neutrales)
+vacunacion_ninos_sexo <- 
+movid_2022_s |> 
+  filter(!d14_recoded %in% c("NS/NR","Indiferente") ) |> 
+  group_by(sexo, d14_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(vacunacion_ninos_sexo,
+                       titulo = "Disposición a vacunar anualmente a niños de 3 años o más según sexo")
+
+```
+
+En cambio, al desagregar por tramo etario se observa una mayor disposición a vacunar anualmente a los niños entre los adultos de 60 años o más en comparación con los adultos de entre 18 y 29 años. La misma tendencia que se observa en el caso de la vacunación anual en adultos. 
+
+```{r vacunacion_ninos_edad, echo=FALSE}
+
+# Importancia de la vacunación en ninos según edad (se filtran neutrales)
+vacunacion_ninos_edad <- 
+movid_2022_s |> 
+  filter(!d14_recoded %in% c("NS/NR","Indiferente"),  ) |> 
+  group_by(edad_2, d14_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(vacunacion_ninos_edad,
+                       titulo = "Disposición a vacunar anualmente a niños de 3 años o más según tramo etario")
+
+```
+
+
+Al desagregar por el principal medio de información utilizado tampoco se observan diferencias concluyentes. 
+
+```{r vacunacion_ninos_medios, echo=FALSE}
+
+# Importancia de la vacunación en ninos según medios de información (se filtran neutrales)
+vacunacion_ninos_medios <- 
+movid_2022_s |> 
+  filter(!d14_recoded %in% c("NS/NR","Indiferente"), !mi_web_o_tradicionales == "Otros/NS/NR") |> 
+  group_by(mi_web_o_tradicionales, d14_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(vacunacion_ninos_medios,
+                       titulo = "Disposición a vacunar anualmente a niños de 3 años o más según principal medio de información")
+
+```
+
+#### Disposición vacunal en niños y adultos
+
+Como se observó en los gráficos anteriores, la gente está más de acuerdo con que los adultos se vacunen anualmente que los niños. Al cruzar ambas preguntas se puede reconocer que entre las personas que están muy o bastante a dispuestas a vacunarse anualmente, un 85.7% (IC95% 82.7-88.7) estaría de acuerdo muy de acuerdo con que se vacunaran niños y niñas de 3 años o más. De la misma forma,  entre las personas que estarían poco o nada dispuestas a vacunarse, un 77.6% (IC95% 69.6-85.6) estaría en desacuerdo o muy en desacuerdo con vacunar a niños y niás de 3 años o más.  Como es de esperarse, ambas opiniones estarían altamente correlacionadas. No obstante, es importante destacar que existe un grupo de personas que está  dispuesta o muy dispuesta a vacunarse anualmente pero que estaría en desacuerdo con que los niños  mayores de 3 años lo hicieran, equivalente al 6.2% (IC95% 4.2-8.3) de la población dispuesta o muy dispuesta a vacunarse anualmente. 
+
+
+```{r disposicion_vacunacion_ninos_adultos, echo=FALSE}
+
+## Disposición vacunal en niños y adultos 
+# Se exckuye kla categiría algo dispuesto (neutra) en d13 para simplificar el gráfico. 
+disposicion_vacunacion_ninos_adultos <- 
+  movid_2022_s |> 
+  filter(!d13_recoded %in% c("NS/NR", "Algo dispuesto"), !d14_recoded %in% c("NS/NR")) |> 
+  group_by(d13_recoded, d14_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(disposicion_vacunacion_ninos_adultos,
+                       titulo = "Disposición a vacunar anualmente a niños de 3 años o más (d14) según disposición a vacunarse anualmente(d13)")
+
+```
+
+
+
+### 6. Medidas de autocuidado y protección ante sospecha de COVID-19
+
+
+Para evaluar las medidas de autocuidado  llevadas a cabo por las personas. En la versión del año 2022 de la encuesta se consulto a las personas que harían luego  de tener un contacto estrecho con una persona con COVID-19
+
+
+
+### 7. Aceptabilidad de estrategias para aumentar tasa de vacunación ante COVID-19 (percepción que tengan las personas de estas estrategias)
+
+
+### 8. Aceptabilidad inmunizaciones en general post COVID-19 (reticencia vacunal) 
+
+
+### 9. Prevalencia de sintomatología post COVID-19 (Long COVID) 
+
+
+### 10.Prevalencia de patologías de salud mental post pandemia por COVID-19
+
+
+
