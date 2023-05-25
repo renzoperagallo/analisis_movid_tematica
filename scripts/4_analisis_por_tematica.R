@@ -130,6 +130,7 @@ movid_2022_s |>
   summarize(proportion = survey_mean(vartype = "ci"))
 
 
+
 ## ¿Por qué razon no se han vacunado?
 # Solo aquellas personas que en d7 respondiendo que "4. Es poco probable que me vacune" o 
 # "5. No me vacunaría por ningún motivo". 
@@ -141,9 +142,43 @@ tabulados_razones_no_vacunacion <- map(razones_no_vacunacion, ~calculo_razones_n
 
 # Seleccion de los principales (principales razones mencioandas) (d, e, f, h)
 tabulados_razones_no_vacunacion_main <- c(tabulados_razones_no_vacunacion[4:6], tabulados_razones_no_vacunacion[8])
-tabulados_razones_no_vacunacion_main
 
-movid_2022 |> group_by(d12_1) |> tally()
+# Renombrar columnas 
+for (i in c(1:4)){
+  names(tabulados_razones_no_vacunacion_main[[i]]) <-  c("si_no", "proportion", "proportion_low", "proportion_upp")
+  tabulados_razones_no_vacunacion_main[[i]] <- 
+    tabulados_razones_no_vacunacion_main[[i]] |> 
+    mutate(si_no = recode(as.factor(si_no), 
+                          '1' = "Si",
+                          '2' = "No"))
+}
+
+
+tabulados_razones_no_vacunacion_main[[1]] <- 
+  tabulados_razones_no_vacunacion_main[[1]] |> 
+  mutate(razon = "Preocupación posibles efectos adversos de la vacuna") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[2]] <- 
+  tabulados_razones_no_vacunacion_main[[2]] |> 
+  mutate(razon = "No está seguro que la vacuna funcione contra el coronavirus") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[3]] <- 
+  tabulados_razones_no_vacunacion_main[[3]] |> 
+  mutate(razon = "Prefiere esperar a ver que la vacuna sea segura") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[4]] <- 
+  tabulados_razones_no_vacunacion_main[[4]] |> 
+  mutate(razon = "Está en contra de las vacunas en general") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_df <- rbind(tabulados_razones_no_vacunacion_main[[1]], 
+                                            tabulados_razones_no_vacunacion_main[[2]],
+                                            tabulados_razones_no_vacunacion_main[[3]],
+                                            tabulados_razones_no_vacunacion_main[[4]])
+
 
 
 ## Evaluación preguntas likert
@@ -388,24 +423,29 @@ indice_respuesta_contacto_estrecho_con_sintomas_cronica <-
 # ante COVID-19 (percepción que tengan las personas de estas estrategias)
 
 ## d12.9 Considera que el pase de movilidad es una motivación importante para que las personas se vacunen?
-movid_2022_s |> 
+
+motivacion_pase <- 
+  movid_2022_s |> 
   filter(!d12_9_recoded == "NS/NR") |> 
   group_by(d12_9_recoded) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Desagergada por sexo
+motivacion_pase_sexo <-
 movid_2022_s |> 
   filter(!d12_9_recoded == "NS/NR") |> 
   group_by(sexo, d12_9_recoded) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Desagregada por medios de informacion
+motivacion_pase_medios <-
 movid_2022_s |> 
   filter(!d12_9_recoded == "NS/NR", !mi_web_o_tradicionales == "Otros/NS/NR") |> 
   group_by(mi_web_o_tradicionales, d12_9_recoded) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Desagregada por tramo etario
+motivacion_pase_edad <-
 movid_2022_s |> 
   filter(!d12_9_recoded == "NS/NR") |> 
   group_by(edad_2, d12_9_recoded) |> 
@@ -469,10 +509,21 @@ aprobacion_gobierno_comparacion_anos
 # Recordar que esta pregunta solo se hizo a personas que no tienen su esquema de vacunación completo 
 # y  que  es poco o nada probable que se vacunen en las próximas dos semanas 
 
+# Muestra
+muestra_antivacuna <- 
+movid_2022 |> 
+  filter() |> 
+  group_by(d8_h) |> 
+  tally()
+
+#Estimacion poblacional
+antivacunas <- 
 movid_2022_s |> 
   filter() |> 
   group_by(d8_h) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
+
+
 
 # Ahora bien, se puede identificar a este grupo de "anti-vacunas" como aquellos que
 # 1. no se han vacunado contra el coronavirus y 2. manifestan estar en contra de las vacunas en general. 
@@ -492,37 +543,53 @@ movid_2022_s |>
 # POR ESO SE USA FUNCION FILTER Y NO GROUP_BY PARA LAS DESAGREGACIONES
 
 # Sexo
-movid_2022_s |> 
+muestra_antivacunas_sexo <- 
+  movid_2022 |> 
   filter(antivacunas == "Antivacunas") |> 
   group_by(sexo) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  tally()|> 
+  rename(Sexo = sexo) |> 
+  mutate(Sexo = recode(as.factor(Sexo), '1' = "Hombre", '2' = "Mujer"))
+
 
 # Tramo etario
-movid_2022_s |> 
+muestra_antivacunas_edad <- 
+  movid_2022 |> 
   filter(antivacunas == "Antivacunas") |> 
   group_by(edad_2) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  tally()|> 
+  rename(`Tramo etario` = edad_2) 
 
 # Medios de información 
-movid_2022_s |> 
+muestra_antivacunas_medios <- 
+  movid_2022 |> 
   filter(antivacunas == "Antivacunas") |> 
   group_by(mi_web_o_tradicionales) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  tally()|> 
+  rename(`Principal medio de información` = mi_web_o_tradicionales) 
 
 # e1_1 Medicina alternativa
-movid_2022_s |> 
+muestra_antivacunas_medicina_alternativa <- 
+movid_2022 |> 
   filter(antivacunas == "Antivacunas") |> 
   group_by(e1_1_recoded) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  tally() |> 
+  rename(`La medicina alternativa puede ser más efectiva que la convencional para enfrentar la pandemia` = e1_1_recoded) 
 
 # e1_2 Conspiracionismo
-movid_2022_s |> 
+muestra_antivacunas_conspiracionismo <- 
+movid_2022 |> 
   filter(antivacunas == "Antivacunas") |> 
   group_by(e1_2_recoded) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  tally()|> 
+  rename(`La pandemia COVID19 fue creada intencionalmente, con fines políticos y económicos` = e1_2_recoded) 
 
 
-
+muestra_antivacunas_sexo
+muestra_antivacunas_edad
+muestra_antivacunas_medios
+muestra_antivacunas_medicina_alternativa
+muestra_antivacunas_conspiracionismo
 
 # 9. Prevalencia de sintomatología post COVID-19 (Long COVID)  -------------
 
@@ -538,35 +605,36 @@ long_covid_2022 <-
   select(ano, long_covid = c6, everything())
 
 # Sexo
-
+long_covid_2022_sexo <- 
 movid_2022_s |> 
   filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
   group_by(sexo, c6) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Tramo etario
-
+long_covid_2022_edad <- 
 movid_2022_s |> 
   filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
   group_by(edad_2, c6) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Pacientes cronicos
-
+long_covid_2022_cronicos <- 
 movid_2022_s |> 
   filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
   group_by(cronica_d, c6) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Prevision de salud
-
+long_covid_2022_prevision <- 
 movid_2022_s |> 
   filter(c1 == 1, !c6 == 8, !c6 == 9, prevision %in% c("Fonasa", "Isapre")) |> 
   group_by(prevision, c6) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Hospitalizados 
-# c5 = Hospitalizados, c6 = Sintomas que duraron màs de un mes
+# c5 = Hospitalizados, c6 = Sintomas que duraron màs de un mes.
+long_covid_2022_hospitalizados <- 
 movid_2022_s |> 
   filter(c1 == 1, !c6 == 8, !c6 == 9, c5 %in% c(1:2)) |> 
   group_by(c5, c6) |> 
@@ -623,13 +691,17 @@ movid_2020_s |>
 ## Comparacion años 2020 y 2022
 
 long_covid_comparacion_anos <- rbind(long_covid_2020, long_covid_2022)
-long_covid_comparacion_anos
+long_covid_comparacion_anos <- 
+  long_covid_comparacion_anos |> 
+  mutate(long_covid = recode(as.factor(long_covid), 
+                             '1' = "Sintomas por más de un mes", 
+                             '2' = "Sin sintomas por más de un mes"))
 
 graph_barras_bivariado(long_covid_comparacion_anos, 
                        titulo = "Personas con sintomas que duraron más de un mes tras COVID-19")
 
 # 10. Prevalencia de patologías de salud mental post pandemia por COVID ----
-# Se utiliza indice PHQ-4 (ver script 2 mara más detalles)
+# Se utiliza indice PHQ-4 (ver script 2 para más detalles sobre su construcción)
 
 
 ## Indice salud mental año 2020.
@@ -640,16 +712,19 @@ salud_mental_2020 <-
   summarize(proportion = survey_mean(vartype = "ci"))
 
 # Sexo
+salud_mental_2020_sexo <- 
 movid_2020_s |> 
   filter() |> 
   group_by(sexo, phq_4_categorico) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 # Tramo etario
+salud_mental_2020_edad <- 
 movid_2020_s |> 
   filter() |> 
   group_by(edad_2, phq_4_categorico) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 # Region
+salud_mental_2020_region <- 
 movid_2020_s |> 
   filter() |> 
   group_by(region_d, phq_4_categorico) |> 

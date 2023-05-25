@@ -1,9 +1,24 @@
 ---
-title: "Micro informe: resultados encuestas MOVID-IMPACT por tema"
+title: "Micro informe: resultados encuestas MOVID-IMPACT por temáticas de interés"
 author: "Renzo Peragallo Díaz"
 date: "2023-05-22"
-output: html_document
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 3
+    latex_engine: pdflatex
+header-includes:
+- \usepackage{multicol}
+- \usepackage{geometry}
+- \geometry{left=1in,right=1in,top=1in,bottom=1in}
+always_allow_html: true
 ---
+
+<style type="text/css">
+  body{
+  font-size: 14pt;
+}
+</style>
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -21,9 +36,28 @@ p_load(tidyverse,
        survey, # Análisis muestral
        srvyr, # Paquete survey en lenguaje dplyr
        purrr, # Funcion map
-       ggthemes)  #Temas gráficos
+       ggthemes, #Temas gráficos
+       kableExtra, # Tablas html para markdown
+       extrafont)  # Para utilizar fuentes del sistema en ggplot
+
+## Cambiar la fuente para los gráficos de ggplot
+
+# Importa las fuentes del sistema
+font_import()
+# Registra las fuentes para su uso en PDF
+loadfonts(device = "pdf")
+# Cambia la fuente a "Times"
+theme_set(theme_minimal(base_family = "Times"))
+
+ 
+
+
+
 
 # ++ Funciones ---------------------------------------------------------------
+
+
+
 
 # Razones no vacunacion ---------------------------------------------------
 
@@ -42,10 +76,29 @@ calculo_razones_no_vacunacion <- function(srvyr_object, variable) {
 # Grafico bivariado -------------------------------------------------------
 
 # Funcion que toma una salida bivariada de svyr y la transforma en un gráfico
-graph_barras_bivariado <- function(df_original, titulo, label_eje_x = NULL, subtitulo = NULL){
+graph_barras_bivariado <- function(df_original, 
+                                   titulo, 
+                                   label_eje_x = NULL, 
+                                   subtitulo = NULL, 
+                                   angulo_text_eje_x = 0,
+                                   hjust_text_eje_x = 0.5,
+                                   ancho_texto_x = NULL){
+  # EXPLICACION GENERAL 
+  # SE CREARON TRES ARGUMENTOS PARA PODER PERSONALIZAR LA POSICIÓN DE LAS ETIQUETAS EN EL EJE X: 
+  # angulo_text_eje_x = 45  pone el texto en 45 grados ( o cualquier angulo deseado),
+  # hjust_text_eje_x = 0.8 alinea el texto cuando se gira. Se recomienda utilizar en 0.8 si el texto está en 45, si está en 0 grados, poner en 0.5. 
+  # ancho_texto_x = 10 Limita el número de caracteres de la  etiqueta del eje X. Se usa para incluir saltos de linea
+  #  cuando las etiquetas no caben bien. 
   df <- df_original 
+
   # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
   df$x <- as.factor(df[[1]])
+  
+  if (!is.null(ancho_texto_x)){
+    df$x <- str_wrap(df$x, width = ancho_texto_x)
+  }
+  
+  
   df$y <- round(df[[3]] * 100, 1)
   df$group_fill <- as.factor(df[[2]])
   df$ymax <- round(df[[5]] * 100, 1) 
@@ -70,29 +123,57 @@ graph_barras_bivariado <- function(df_original, titulo, label_eje_x = NULL, subt
               vjust = -1,
               size = 3,
               fontface = 2) + # Argumento que agrega cursivas, negritas, etc
-    scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
-    theme(legend.position = "bottom") +  # Posicion leyenda
-    theme_excel_new() + # tema excel 
-   scale_fill_excel_new(theme = "Badge") # paleta de colores para el tema excel
+    scale_fill_discrete(name = "") + # Titulo leyenda 
+    theme_minimal() +
+    theme(
+      legend.position = "bottom", # Posicion leyenda
+      plot.title = element_text(size = rel(1.2), face = "bold", hjust = 0.5), # Ajusta el tamaño, tipo de letra y alineación del título del gráfico
+      plot.subtitle = element_text(hjust = 0.5, size = rel(1)), # Subtítulo centrado
+      legend.title = element_text(size = rel(1), face = "bold"), # Ajusta el tamaño y tipo de letra del título de la leyenda
+      legend.text = element_text(size = rel(0.8)), # Ajusta el tamaño de la leyenda
+      axis.title = element_text(size = rel(1), face = "bold"), # Ajusta el tamaño y tipo de letra de los títulos de los ejes
+      axis.text = element_text(size = rel(0.8)),
+      axis.text.x = element_text(angle = angulo_text_eje_x, hjust = hjust_text_eje_x))  # Rota las etiquetas del eje x 45 grados) # Ajusta el tamaño del texto de los ejes
   return(mi_grafico)
 }
 
 # Prueba de la funcion
 # graph_barras_bivariado(df_prueba,
 #                        titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
-graph_barras_bivariado(acata_normas_comparacion_anos,
-                       titulo = "Acata normas, comparacion año 2020 y 2022.",
-                       subtitulo = "prueba")
+# graph_barras_bivariado(acata_normas_comparacion_anos,
+#                        titulo = "Acata normas, comparacion año 2020 y 2022.",
+#                        subtitulo = "prueba",
+#                        angulo_text_eje_x = 0,
+#                        hjust_text_eje_x = 0.5,
+#                        ancho_texto_x = NULL)
 
 
 
 # Grafico univariado ------------------------------------------------------
 
 # Funcion que toma una salida univariada de svyr y la transforma en un gráfico
-graph_barras_univariado <- function(df_original, titulo, label_eje_x = NULL){
+graph_barras_univariado <- function(df_original, 
+                                    titulo, 
+                                    label_eje_x = NULL, 
+                                    subtitulo = NULL, 
+                                    angulo_text_eje_x = 0,
+                                    hjust_text_eje_x = 0.5,
+                                    ancho_texto_x = NULL){
+  # EXPLICACION GENERAL 
+  # SE CREARON TRES ARGUMENTOS PARA PODER PERSONALIZAR LA POSICIÓN DE LAS ETIQUETAS EN EL EJE X: 
+  # angulo_text_eje_x = 45  pone el texto en 45 grados ( o cualquier angulo deseado),
+  # hjust_text_eje_x = 0.8 alinea el texto cuando se gira. Se recomienda utilizar en 0.8 si el texto está en 45, si está en 0 grados, poner en 0.5. 
+  # ancho_texto_x = 10 Limita el número de caracteres de la  etiqueta del eje X. Se usa para incluir saltos de linea
+  #  cuando las etiquetas no caben bien. 
+  
   df <- df_original 
   # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
   df$x <- df[[1]]
+  
+  if (!is.null(ancho_texto_x)){
+    df$x <- str_wrap(df$x, width = ancho_texto_x)
+  }
+  
   df$y <- round(df[[2]] * 100, 1)
   df$ymax <- round(df[[4]] * 100, 1) 
   df$ymin <- round(df[[3]] * 100, 1)
@@ -105,25 +186,66 @@ graph_barras_univariado <- function(df_original, titulo, label_eje_x = NULL){
                            ymin = ymin)) +
     geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
     geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
+    labs(title = titulo, # Titulo gráfico
+         subtitle = if (is.null(subtitulo)){""} else {subtitulo}, # No se aplica por el tema del gráfico
+         x = if (is.null(label_eje_x)){""} else {label_eje_x},  # Titulo eje x (con este tema no se usa así que lo dejé en nulo)
+         y = "%") + # titulo eje y (no se visualiza en este tema)
     ylim(0,100) + # limites eje y 
     geom_text(aes(y = ymax, label = y), 
               position = position_dodge(width = 0.9), 
               vjust = -1,
               size = 3,
               fontface = 2) + # Argumento que agrega cursivas, negritas, etc
-    scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
-    theme_excel_new() + # tema excel 
-    scale_fill_excel_new(theme = "Badge") + # paleta de colores para el tema excel
-    theme(legend.position = "none") # Posicion leyenda. Se pone none porque es univariado pero se quiere mantener los colores
+    scale_fill_discrete(name = "") + # Titulo leyenda (no se usa en este tema)
+    theme_minimal() +
+    theme(
+      legend.position = "none", # Posicion leyenda
+      plot.title = element_text(size = rel(1.2), face = "bold", hjust = 0.5), # Ajusta el tamaño, tipo de letra y alineación del título del gráfico
+      plot.subtitle = element_text(hjust = 0.5, size = rel(1)), # Subtítulo centrado
+      legend.title = element_text(size = rel(1), face = "bold"), # Ajusta el tamaño y tipo de letra del título de la leyenda
+      legend.text = element_text(size = rel(0.8)), # Ajusta el tamaño de la leyenda
+      axis.title = element_text(size = rel(1), face = "bold"), # Ajusta el tamaño y tipo de letra de los títulos de los ejes
+      axis.text = element_text(size = rel(0.8)),
+      axis.text.x = element_text(angle = angulo_text_eje_x, hjust = hjust_text_eje_x)) # Ajusta el tamaño del texto de los ejes
   return(mi_grafico)
 }
 
 # Prueba de la funcion
-# df_prueba_2 <- movid_2022_s |> 
-#   filter(!d12_9_recoded == "NS/NR") |> 
-#   group_by(d12_9_recoded) |> 
+# df_prueba_2 <- movid_2022_s |>
+#   filter(!d12_9_recoded == "NS/NR") |>
+#   group_by(d12_9_recoded) |>
 #   summarize(proportion = survey_mean(vartype = "ci"))
-# graph_barras_univariado(df_prueba_2, titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
+# 
+# 
+# graph_barras_univariado(df_prueba_2,
+#                         titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario",
+#                         subtitulo = "prueba",
+#                         angulo_text_eje_x = 45,
+#                         hjust_text_eje_x = 0.8)
+
+
+# Ejemplo (ejecutar script 2 3 y 4 primero)
+# razon_pospuso_tratamiento <- 
+#   movid_2020_s |> 
+#   filter(cronica_d == 1, pospuso_tratamiento == "Pospuso tratamiento") |> 
+#   group_by(razon_pospuso_tratamiento) |> 
+#   summarize(proportion = survey_mean(vartype = "ci")) |> 
+#   mutate(razon_pospuso_tratamiento = recode(as.factor(razon_pospuso_tratamiento),
+#                                             '1' = "Porque no le pareció importante controlarse",
+#                                             '2' = "Por el costo económico",
+#                                             '4' = "Porque tenía que esperar mucho tiempo",
+#                                             '5' = "Por miedo a contagiarse de COVID-19",
+#                                             '6' = "Porque el sistema de salud está muy lleno",
+#                                             '7' = "No contó con trasporte para trasladarse al lugar de atención",
+#                                             '8' = "No tuvo con quien dejar a personas a su cuidado",
+#                                             '9' = "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado",
+#                                             '10' = "Otro",
+#                                             '98' = "No sabe"))
+# graph_barras_univariado(razon_pospuso_tratamiento,
+#                         titulo = "Razón por la que se pospuso el tratamiento",
+#                         angulo_text_eje_x = 0,
+#                         hjust_text_eje_x = 0.5,
+#                         ancho_texto_x = 10)
 
 
 # Moda --------------------------------------------------------------------
@@ -148,6 +270,95 @@ proporcion_grupo <-
     return(df)
     print(df)
   }
+
+
+
+# Funciones depreciadas (tema excel para gráficos) ------------------------
+
+# 
+# # Funcion que toma una salida bivariada de svyr y la transforma en un gráfico
+# graph_barras_bivariado <- function(df_original, titulo, label_eje_x = NULL, subtitulo = NULL){
+#   df <- df_original 
+#   # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
+#   df$x <- as.factor(df[[1]])
+#   df$y <- round(df[[3]] * 100, 1)
+#   df$group_fill <- as.factor(df[[2]])
+#   df$ymax <- round(df[[5]] * 100, 1) 
+#   df$ymin <- round(df[[4]] * 100, 1)
+#   # Gráfico
+#   mi_grafico <- ggplot(data = df, 
+#                        aes(x = x, 
+#                            y = y, 
+#                            group = group_fill, 
+#                            fill = group_fill,
+#                            ymax = ymax, 
+#                            ymin = ymin)) +
+#     geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
+#     geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
+#     labs(title = titulo, # Titulo gráfico
+#          subtitle = if (is.null(subtitulo)){""} else {subtitulo}, # No se aplica por el tema del gráfico
+#          x = if (is.null(label_eje_x)){""} else {label_eje_x},  # Titulo eje x (con este tema no se usa así que lo dejé en nulo)
+#          y = "%") + # titulo eje y (no se visualiza en este tema)
+#     ylim(0,100) + # limites eje y 
+#     geom_text(aes(y = ymax, label = y), 
+#               position = position_dodge(width = 0.9), 
+#               vjust = -1,
+#               size = 3,
+#               fontface = 2) + # Argumento que agrega cursivas, negritas, etc
+#     scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
+#     theme(legend.position = "bottom") +  # Posicion leyenda
+#     theme_excel_new() + # tema excel 
+#     scale_fill_excel_new(theme = "Badge") # paleta de colores para el tema excel
+#   return(mi_grafico)
+# }
+# 
+# # Prueba de la funcion
+# # graph_barras_bivariado(df_prueba,
+# #                        titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
+# # graph_barras_bivariado(acata_normas_comparacion_anos,
+# #                        titulo = "Acata normas, comparacion año 2020 y 2022.",
+# #                        subtitulo = "prueba")
+# 
+# 
+# # Funcion que toma una salida univariada de svyr y la transforma en un gráfico
+# graph_barras_univariado <- function(df_original, titulo, label_eje_x = NULL){
+#   df <- df_original 
+#   # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
+#   df$x <- df[[1]]
+#   df$y <- round(df[[2]] * 100, 1)
+#   df$ymax <- round(df[[4]] * 100, 1) 
+#   df$ymin <- round(df[[3]] * 100, 1)
+#   # Gráfico
+#   mi_grafico <- ggplot(data = df, 
+#                        aes(x = x, 
+#                            y = y, 
+#                            fill = x, # Se dejó el argumento fill para que las barras conserven la paleta de colores
+#                            ymax = ymax, 
+#                            ymin = ymin)) +
+#     geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
+#     geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
+#     ylim(0,100) + # limites eje y 
+#     geom_text(aes(y = ymax, label = y), 
+#               position = position_dodge(width = 0.9), 
+#               vjust = -1,
+#               size = 3,
+#               fontface = 2) + # Argumento que agrega cursivas, negritas, etc
+#     scale_fill_discrete(name = "Leyenda") + # Titulo leyenda (no se usa en este tema)
+#     theme_excel_new() + # tema excel 
+#     scale_fill_excel_new(theme = "Badge") + # paleta de colores para el tema excel
+#     theme(legend.position = "none") # Posicion leyenda. Se pone none porque es univariado pero se quiere mantener los colores
+#   return(mi_grafico)
+# }
+# 
+# # Prueba de la funcion
+# # df_prueba_2 <- movid_2022_s |> 
+# #   filter(!d12_9_recoded == "NS/NR") |> 
+# #   group_by(d12_9_recoded) |> 
+# #   summarize(proportion = survey_mean(vartype = "ci"))
+# # graph_barras_univariado(df_prueba_2, titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
+
+
+
 ```
 
 
@@ -959,7 +1170,7 @@ En la encuesta del año 2020 se consultó a las personas que padecían alguna en
 
 No se observaron diferencias significativas por sexo y tramo etario con relación a esta variable.  
 
-```{r pospuso_tratamiento, echo=FALSE}
+```{r pospuso_tratamiento, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 pospuso_tratamiento <- 
   movid_2020_s |> 
@@ -988,21 +1199,32 @@ graph_barras_bivariado(pospuso_tratamiento_edad,
 
 Respecto a las razones por las que se pospuso  el control o atención de salud, se destacan dos razones principales: "Por miedo a contagiarse por COVID-19" (31.8%, IC95% 24.1-39.4), y  "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado" (51.2%, IC95% 43.1-59.3),  por lo que se puede reconocer que al menos el 80% de las postergaciones tendrían alguna relación con la crisis sanitaria. 
 
-```{r razon_pospuso_tratamiento, echo=FALSE}
+```{r razon_pospuso_tratamiento, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 razon_pospuso_tratamiento <- 
   movid_2020_s |> 
   filter(cronica_d == 1, pospuso_tratamiento == "Pospuso tratamiento") |> 
   group_by(razon_pospuso_tratamiento) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
-
-graph_barras_bivariado(razon_pospuso_tratamiento,
-                       titulo = "Razón por la que se pospuso el tratamiento")
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(razon_pospuso_tratamiento = recode(as.factor(razon_pospuso_tratamiento),
+                                            '1' = "Porque no le pareció importante controlarse",
+                                            '2' = "Por el costo económico",
+                                            '4' = "Porque tenía que esperar mucho tiempo",
+                                            '5' = "Por miedo a contagiarse de COVID-19",
+                                            '6' = "Porque el sistema de salud está muy lleno",
+                                            '7' = "No contó con trasporte para trasladarse al lugar de atención",
+                                            '8' = "No tuvo con quien dejar a personas a su cuidado",
+                                            '9' = "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado",
+                                            '10' = "Otro",
+                                            '98' = "No sabe"))
+graph_barras_univariado(razon_pospuso_tratamiento,
+                        titulo = "Razón por la que se pospuso el tratamiento",
+                        ancho_texto_x = 10)
 ```
 
 Al revisar con mayor detalle los tratamientos pospuestos, se identifica que el 22.9% (IC95% 18.9-26.9) de los pacientes crónicos tuvieron que postergar una consulta médica, un 13.1% (IC95% 9.9-16.3) tuvo que postergar algún examen de laboratorio o imagenológico, y, un 1.9% (IC95% 0.6-3.1) tuvo que posponer una cirugía electiva.
 
-```{r detalle_tratamientos_pospuestos, echo=FALSE}
+```{r detalle_tratamientos_pospuestos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Pacientes cronicos que tuvieron que posponer alguna de las sigientes atenciones de salud planificadas
 # en los últimos 3 meses. 
@@ -1031,7 +1253,7 @@ movid_2020_s |>
 
 Al desagregar por previsión de salud (solo Fonasa e Isapre), no se observaron mayores diferencias. Por ejemplo, entre las personas pertenecientes a FONASA, un 23.0% (IC95% 18.5-27.6) postergo consulta médica, mientras que un 24.8% (IC95% 14.6-35.0) pospuso tratamiento entre las personas pertenecientes a Isapre.  
 
-```{r tratamientos_pospuestos_prevision_salud, echo=FALSE}
+```{r tratamientos_pospuestos_prevision_salud, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Consultas médicas segun fonasa  o isapre en pacientes crónicos
 postergacion_consultas_medicas_prevision <- 
@@ -1063,7 +1285,7 @@ graph_barras_bivariado(postergacion_consultas_medicas_prevision,
 
 Con relación a la discontinuidad de examenes diagnósticos asociados a cancer (papanicolau, mamografías u otros en mujeres y antigeno prostaico, colonoscopía  u otros en hombres) se observa que un 9.63% (IC95% 7.0-12.2) de las mujeres  tuvo que posponer algún examen relacionado en los últimos 3 meses (septiembre a diciembre 2020). Las principales razones declaradad fueron porque "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado" y  "Por miedo a contagiarse", sumando más de la mitad de los casos. 
 
-```{r examen_cancer_pospuesto_mujeres, echo=FALSE}
+```{r examen_cancer_pospuesto_mujeres, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Disontiuidad  papanicolau, mamografías u otros (solo mujeres)
 examen_cancer_pospuesto_mujeres <- 
@@ -1077,8 +1299,14 @@ razon_examen_cancer_pospuesto_mujeres <-
 movid_2020_s |> 
   filter(e5_5 == 1, sexo == 2, !e6==98) |> 
   group_by(e6) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
-
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(e6 = recode(as.factor(e6), 
+                     '1' = "Porque no le pareció importante",
+                     '2' = "Por el costo económico",
+                     '6' = "Por miedo a contagiarse",
+                     '8' = "Porque el sistema de salud está muy lleno",
+                     '11' = " El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado",
+                     '12' = "Otra"))
 
 graph_barras_univariado(razon_examen_cancer_pospuesto_mujeres,
                        titulo = "Razón postergación exámenes asociados a cancer en mujeres")
@@ -1087,7 +1315,7 @@ graph_barras_univariado(razon_examen_cancer_pospuesto_mujeres,
 
 En el caso de los hombres,  se reconoce que un 4.3% (IC95% 2.4-6.3) de la población masculina tuvo que posponer algún  examen relacionado a cancer en los últimos 3 meses (septiembre a diciembre 2020). Las principales razones por las que se pospuso el examen fueron "Por miedo a contagiarse" y "Porque el sistema de salud está muy lleno".
 
-```{r examen_cancer_pospuesto_hombres, echo=FALSE}
+```{r examen_cancer_pospuesto_hombres, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Disontiuidad  antigeno prostaico, colonoscopía u otros (solo hombres)
 examen_cancer_pospuesto_hombres <- 
@@ -1101,7 +1329,15 @@ razon_examen_cancer_pospuesto_hombres <-
 movid_2020_s |> 
   filter(e5_6 == 1, sexo == 1) |> 
   group_by(e6) |> 
-  summarize(proportion = survey_mean(vartype = "ci"))
+  summarize(proportion = survey_mean(vartype = "ci"))|> 
+  mutate(e6 = recode(as.factor(e6), 
+                     '3' = "Porque no sabía dónde realizarlas",
+                     '6' = "Por miedo a contagiarse",
+                     '7' = "Porque los síntomas son leves o habituales",
+                     '8' = "Porque el sistema de salud está muy lleno",
+                     '10' = "No tuvo con quien dejar a personas a su cuidado",
+                     '11' = " El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado",
+                     '12' = "Otra"))
 
 graph_barras_univariado(razon_examen_cancer_pospuesto_hombres,
                        titulo = "Razón postergación exámenes asociados a cancer en hombres")
@@ -1114,6 +1350,46 @@ Al respecto, se reconoce que entre las mujeres hubo un mayor número de examenes
 También se observa  una diferencia en las razones por las que se pospuso el examen, siendo la principal razón entre las mujeres que "El consultorio, hospital o clínica le suspendió la hora y no le ha reagendado", mientras que en los hombres la principal razón fue "Por miedo a contagiarse". En este sentido, podría plantearse que en el caso de las mujeres los examenes fueron pospuestos por razones externas a la voluntad individual, mientas que en el caso de los hombres se habrían pospuesto los examenes por decisión propia principalmente. 
 
 ### 3. Discontinuidad del programa de inmunizaciones y control de niño sano
+
+En el capítulo 1 ya se entregaron algunos antecedentes que permiten reconocer las dificultades de los pacientes adultos a recibir sus  tratamientos, consultas y examenes planificados a  causa de la pandemia por COVID-19 (año 2020). 
+
+En este sentido, una de las principales razones declaradas por las personas por las que no pudieron seguir sus tratamientos planificados fue que los centros de salud les habían anulado o postergado la hora. Esta situación se dió por la saturación de los establecimientos de salud exigiendo equipo y personal de salud. 
+
+En este sentido, es posible que estos problemas se hayan transferido a atenciones de salud enfocadas en niños, tales como el programa de control de niño sano y el programa de inmunizaciones. Situación que se puede haber visto agravada por el cierre de los recintos escolares. 
+
+Lamentablemente, no existen preguntas específicas en la encuesta que permitan profundizar en esta temática. 
+
+#### Programa Control Niño Sano
+
+Como se informa en la web oficial de [Chile Crece Contigo](https://www.crececontigo.gob.cl/beneficios/control-de-salud-de-nino-y-nina-sano-en-establecimientos-educacionales/), el programa de Control Niño Sano  consiste en un beneficio que permite que niños y niñas de 5 años en adelante pueden ser tanto en el Centro de salud como en el establecimiento educacional. Las principales actividades a realizar en el control son la evaluación del desarrollo integral y crecimiento del niño o la niña, junto con orientar y resolver las dudas que las madres, padres y/o cuidadores tengan al respecto.
+
+Esta atención considera las siguientes prestaciones: revisión de antecedentes generales y de riesgo biopsicosocial, examen físico cefalocaudal, revisión dental, evaluación pondoestatural, control de presión arterial, screening visual, auditivo y respiratorio, y revisión de plan de vacunación.
+
+Junto con realizar el control de salud de niño y niña sano(a), este programa realiza las derivaciones al centro de salud según el problema pesquisado. Adicionalmente, se trabaja con los profesores y se les capacita en riesgos de salud.
+
+#### Programa de inmunizaciones
+
+Como se indica en la web oficial del Programa Nacional de Inmunizaciones [PNI](https://vacunas.minsal.cl/informacion-a-la-comunidad/obligatoriedad-de-la-vacunacion/), este programa está destinado a prevenir morbilidad, discapacidad y mortalidad por enfermedades infecciosas transmisibles inmunoprevenibles utilizando un conjunto de vacunas destinadas a proteger a la población a lo largo de todo el ciclo vital, las cuales se constituyen en bienes públicos. Su fin es contribuir a mantener y mejorar la salud de la población y su propósito es controlar la morbilidad y mortalidad por enfermedades transmisibles prevenibles por vacunas (inmunoprevenibles) que han sido definidas como parte del PNI, en concordancia con recomendaciones internacionales.
+
+Entre las enfermedades consideradas para vacunación en lactantes se encuentran: 
+
+ - BCG
+ - Hepatitis B
+ - Hexavalente
+ - Neumocócica conjugada 13 valente
+ - Meningocócica conjugada A, C, W-135, Y
+ - SRP (Sarampión, Rubéola y Parotiditis)
+ - Hepatitis A
+ - Varicela
+ - Fiebre amarilla
+ 
+Y  para los pre-escolares y escolares se encuentran: 
+ 
+- SRP (Sarampión, Rubéola y Parotiditis)
+- dTp (acelular)
+- VPH
+- Varicela
+
 
 
 ### 4. Disposición vacunal en adultos (mayores de 18 años) 
@@ -1138,7 +1414,7 @@ De esta manera, se identifico que entre las principales razones por las que no s
 
 
 
-```{r razones_no_vacunacion, echo=FALSE}
+```{r razones_no_vacunacion, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 ## ¿Por qué razon no se han vacunado?
 # Solo aquellas personas que en d7 respondiendo que "4. Es poco probable que me vacune" o 
@@ -1152,20 +1428,47 @@ tabulados_razones_no_vacunacion <- map(razones_no_vacunacion, ~calculo_razones_n
 # Seleccion de los principales (principales razones mencioandas) (d, e, f, h)
 tabulados_razones_no_vacunacion_main <- c(tabulados_razones_no_vacunacion[4:6], tabulados_razones_no_vacunacion[8])
 
+# Renombrar columnas 
+for (i in c(1:4)){
+  names(tabulados_razones_no_vacunacion_main[[i]]) <-  c("si_no", "proportion", "proportion_low", "proportion_upp")
+  tabulados_razones_no_vacunacion_main[[i]] <- 
+    tabulados_razones_no_vacunacion_main[[i]] |> 
+    mutate(si_no = recode(as.factor(si_no), 
+                          '1' = "Si",
+                          '2' = "No"))
+}
+
+
+tabulados_razones_no_vacunacion_main[[1]] <- 
+  tabulados_razones_no_vacunacion_main[[1]] |> 
+  mutate(razon = "Preocupación posibles efectos adversos de la vacuna") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[2]] <- 
+  tabulados_razones_no_vacunacion_main[[2]] |> 
+  mutate(razon = "No está seguro que la vacuna funcione contra el coronavirus") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[3]] <- 
+  tabulados_razones_no_vacunacion_main[[3]] |> 
+  mutate(razon = "Prefiere esperar a ver que la vacuna sea segura") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_main[[4]] <- 
+  tabulados_razones_no_vacunacion_main[[4]] |> 
+  mutate(razon = "Está en contra de las vacunas en general") |> 
+  select(razon, everything())
+
+tabulados_razones_no_vacunacion_df <- rbind(tabulados_razones_no_vacunacion_main[[1]], 
+                                            tabulados_razones_no_vacunacion_main[[2]],
+                                            tabulados_razones_no_vacunacion_main[[3]],
+                                            tabulados_razones_no_vacunacion_main[[4]])
 
 # Gráficos
 
-graph_barras_univariado(tabulados_razones_no_vacunacion_main[1],
-                       titulo = "Porcentaje de personas que no se vacunarían debido a posibles efectos adversos de la vacuna")
+graph_barras_bivariado(tabulados_razones_no_vacunacion_df,
+                       titulo = "¿Por qué razón o razones es poco o nada probable que ud. se vacune?")
 
-graph_barras_univariado(tabulados_razones_no_vacunacion_main[3],
-                       titulo = "Porcentaje de personas que no se vacunarían debido a que prefieren esperar a ver que la vacuna sea segura")
-
-graph_barras_univariado(tabulados_razones_no_vacunacion_main[4],
-                       titulo = "Porcentaje de personas que no se vacunarían debido a que estan en contra de las vacunas en general")
-
-graph_barras_univariado(tabulados_razones_no_vacunacion_main[2],
-                       titulo = "Porcentaje de personas que no se vacunarían debido a que no están seguras que la vacuna funcioen contra el coronavirus")
 
 ```
 
@@ -1175,7 +1478,7 @@ Por otro lado, también se consultó a las personas por distintas opiniones rela
 
 En términos generales, se reconoce que el 79,4% (IC95% 76.6-82.1) de la población mayor de 18 años estaría de acuerdo con que las vacunas contra el Covid-19 son seguras.
 
-```{r confianza_vacunas, echo=FALSE}
+```{r confianza_vacunas, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Confianza en la seguridad de las vacunas
 confianza_vacunas <- 
@@ -1191,7 +1494,7 @@ graph_barras_univariado(confianza_vacunas,
 
 Un porcentaje similar 78,1% (IC95% 75.1-81.1) confía en que las autoridades sanitarias toman decisiones sobre la vacunación pensando en el bienestar de la población.
 
-```{r confianza_autoridades_sanitarias, echo=FALSE}
+```{r confianza_autoridades_sanitarias, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Confianza en las autoridades sanitarias
 confianza_autoridades_sanitarias <- 
@@ -1200,8 +1503,8 @@ movid_2022_s |>
   group_by(d12_2_recoded) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
-graph_barras_bivariado(confianza_autoridades_sanitarias,
-graph_barras_univariadotitulo = "Confío en que las autoridades sanitarias toman decisiones sobre la vacunación pensando en el bienestar de la población")
+graph_barras_univariado(confianza_autoridades_sanitarias,
+                       titulo = "Confío en que las autoridades sanitarias toman decisiones sobre la vacunación pensando en el bienestar de la población")
 
 ```
 
@@ -1214,7 +1517,7 @@ Esta afirmación podría estar relacionada a los cambios en el escenario epidemi
 Por el contrario, un 77.4% (IC95% 74.9-80.7) estaría en desacuerdo o muy en desacuerdo con esta afirmación, es decir, consideran que la infección por covid-19 sigue siendo grave y es importante vacunarse. En este sentido, se mantiene un porcentaje similar al de las preguntas anteriores, pudiendo afirmarse que alrededor de un 80% de la población confía en las vacunas, en las autoridades sanitarias y considera necesario vacunarse. 
 
 
-```{r importancia_vacunacion, echo=FALSE}
+```{r importancia_vacunacion, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación
 importancia_vacunacion <- 
@@ -1231,7 +1534,7 @@ graph_barras_univariado(importancia_vacunacion,
 
 En términos generales, al desagregar esta pregunta por tramo etario y sexo no se observan  mayores diferencias. 
 
-```{r importancia_vacunacion_edad, echo=FALSE}
+```{r importancia_vacunacion_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación según tramo etario
 importancia_vacunacion_edad <- 
@@ -1246,7 +1549,7 @@ graph_barras_bivariado(importancia_vacunacion_edad,
 ```
 
 
-```{r importancia_vacunacion_sexo, echo=FALSE}
+```{r importancia_vacunacion_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación según tramo etario
 importancia_vacunacion_sexo <-
@@ -1261,7 +1564,7 @@ graph_barras_bivariado(importancia_vacunacion_sexo,
 ```
 Asimismo, se exploró si podía existir alguna diferencia según el medio de comunicación principal que usan las personas para informarse. No obstante,  al desagregar por esta variable tampoco se encontraron mayores diferencias. 
 
-```{r importancia_vacunacion_medios, echo=FALSE}
+```{r importancia_vacunacion_medios, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación según medios de información
 importancia_vacunacion_medios <- 
@@ -1280,7 +1583,7 @@ graph_barras_bivariado(importancia_vacunacion_medios,
 
 Por último, se consultó a las personas por su disposición a vacunarse anualmente. Al respecto, un 15.8% (IC95% 13.3-18.4) estaría poco o nada dispuesto a vacunarse, sin identificarse mayores diferencias por sexo. 
 
-```{r disposicion_vacunacion_anual_sexo, echo=FALSE}
+```{r disposicion_vacunacion_anual_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 # General 
 
 disposicion_vacunacion_anual <- 
@@ -1303,7 +1606,7 @@ graph_barras_bivariado(disposicion_vacunacion_anual_sexo,
 
 Sin embargo, si se evidencian diferencias según tramo etario. Mientras que entre los adultos de 60 años o más solamente un 9.1% (IC95% 6.2-12.0) estaría poco o nada dispuesto a vacunarse anualmente contra el Covid-19, esta cifra se eleva a un 21.0% (IC95% 13.7-28.3)  en el caso de los adultos entre 18 y 29 años.
 
-```{r disposicion_vacunacion_anual_sexo, echo=FALSE}
+```{r disposicion_vacunacion_anual_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Por edad
 disposicion_vacunacion_anual_edad <- 
@@ -1321,7 +1624,7 @@ graph_barras_bivariado(disposicion_vacunacion_anual_edad,
 
 Específicamente respecto a la disposición vacunal en niños, en la versión de la encuesta del año 2022 se consultó a las personas  ¿Qué tan de acuerdo o en desacuerdo está Ud. con que los niños y niñas de 3 años o más se vacunen todos los años contra el COVID-19 con vacunas aprobadas por las autoridades sanitarias? (d14). Frente a esta consulta, el 66.8% (IC95% 63.4-70.3) de las personas  estaría de acuerdo o muy de acuerdo y un 20.5% (IC95% 17.6-23.3) estaría en desacuerdo o muy en desacuerdo. 
 
-```{r vacunacion_ninos, echo=FALSE}
+```{r vacunacion_ninos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación en ninos 
 vacunacion_ninos <- 
@@ -1330,14 +1633,15 @@ movid_2022_s |>
   group_by( d14_recoded) |> 
   summarize(proportion = survey_mean(vartype = "ci"))
 
-graph_barras_univariado(disposicion_vacunacion_anual_edad,
+
+graph_barras_univariado(vacunacion_ninos,
                        titulo = "Disposición a vacunar anualmente a niños de 3 años o más")
 
 ```
 
 Al desagregar por sexo no se obtuvieron diferencias significativas (se excluyó categoría neutra "ni de acuerdo ni en desacuerdo").
 
-```{r vacunacion_ninos_sexo, echo=FALSE}
+```{r vacunacion_ninos_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación en ninos según sexo (se filtran neutrales)
 vacunacion_ninos_sexo <- 
@@ -1353,7 +1657,7 @@ graph_barras_bivariado(vacunacion_ninos_sexo,
 
 En cambio, al desagregar por tramo etario se observa una mayor disposición a vacunar anualmente a los niños entre los adultos de 60 años o más en comparación con los adultos de entre 18 y 29 años. La misma tendencia que se observa en el caso de la vacunación anual en adultos. 
 
-```{r vacunacion_ninos_edad, echo=FALSE}
+```{r vacunacion_ninos_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación en ninos según edad (se filtran neutrales)
 vacunacion_ninos_edad <- 
@@ -1370,7 +1674,7 @@ graph_barras_bivariado(vacunacion_ninos_edad,
 
 Al desagregar por el principal medio de información utilizado tampoco se observan diferencias concluyentes. 
 
-```{r vacunacion_ninos_medios, echo=FALSE}
+```{r vacunacion_ninos_medios, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Importancia de la vacunación en ninos según medios de información (se filtran neutrales)
 vacunacion_ninos_medios <- 
@@ -1389,7 +1693,7 @@ graph_barras_bivariado(vacunacion_ninos_medios,
 Como se observó en los gráficos anteriores, la gente está más de acuerdo con que los adultos se vacunen anualmente que los niños. Al cruzar ambas preguntas se puede reconocer que entre las personas que están muy o bastante a dispuestas a vacunarse anualmente, un 85.7% (IC95% 82.7-88.7) estaría de acuerdo muy de acuerdo con que se vacunaran niños y niñas de 3 años o más. De la misma forma,  entre las personas que estarían poco o nada dispuestas a vacunarse, un 77.6% (IC95% 69.6-85.6) estaría en desacuerdo o muy en desacuerdo con vacunar a niños y niás de 3 años o más.  Como es de esperarse, ambas opiniones estarían altamente correlacionadas. No obstante, es importante destacar que existe un grupo de personas que está  dispuesta o muy dispuesta a vacunarse anualmente pero que estaría en desacuerdo con que los niños  mayores de 3 años lo hicieran, equivalente al 6.2% (IC95% 4.2-8.3) de la población dispuesta o muy dispuesta a vacunarse anualmente. 
 
 
-```{r disposicion_vacunacion_ninos_adultos, echo=FALSE}
+```{r disposicion_vacunacion_ninos_adultos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 ## Disposición vacunal en niños y adultos 
 # Se exckuye kla categiría algo dispuesto (neutra) en d13 para simplificar el gráfico. 
@@ -1425,7 +1729,7 @@ Con base en estas respuetas se puede construir un índice que va de 0 a 3 donde 
 
 Al comparar ambas preguntas, se reconoce que las personas, en general, harían más acciones  preventivas si fueran contacto estrecho en el caso de que tuvieran sintomas. Por ejemplo, en el caso de tener contacto estrecho con una personas con COVID-19 y no tener sintomas, un 8.6% (IC95% 6.7-10.5) de las personas no realizaría alguna de las acciones preventivas descritas anteriormente, mientras que, en el caso de sufrir sintomas esa cifra se reduce al 2.4% (IC95% 1.3-3.7). De la misma forma, se observa un aumento significativo de personas que realizarían 2 acciones preventivas  si además de ser contacto estrecho  se sufren sintomas asociados a COVID (32.0% (IC95% 28.7-35.3) sin sintomas a 51.7% (IC95% 48.2-55.3)). La comparación se puede ver con mayor detalle en el siguiente gráfico. 
 
-```{r indice_respuesta_contacto_estrecho_comparacion, echo=FALSE}
+```{r indice_respuesta_contacto_estrecho_comparacion, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 
 ## Indice de acciones realizadas si la persona es contacto estrecho
@@ -1467,7 +1771,7 @@ graph_barras_bivariado(indice_respuesta_contacto_estrecho_comparacion,
 
 Al analizar con mayor detalle las acciones que realizarían o no las personas en caso de ser contacto estrecho y presentar sintomas, se reconoce que la principal medida no mencionada espontaneamente por las personas es utilizar mascarilla en lugares cerrados, donde solo un 7.2% (IC95% 5.2-9.1) de la población lo menciona. 
 
-```{r comparacion_acciones_contacto_estrecho_con_sintomas, echo=FALSE}
+```{r comparacion_acciones_contacto_estrecho_con_sintomas, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 
 # Se observa que la mayoría de la población realizaría entre 1 y 2 acciones. 
 # la principal medida que la gente no realizaría es: 
@@ -1521,7 +1825,7 @@ Por último, no se observaron mayores diferencias de acuerdo a sexo, tramo etari
 
 En este caso se observa un mayor porcentaje de personas que harían dos acciones preventivas (en vez de una) en caso de ser contacto estrecho y tener sintomas, entre aquellas personas que se informan principalmente por internet en contraste con aquellas personas que se informan principalmente por medios tradicionales (57.3% (IC95% 52.6-62.0)  comparado con  37.6% (IC95% 30.0-45.3), respectivamente). 
 
-```{r comparacion_acciones_contacto_estrecho_con_sintomas, echo=FALSE}
+```{r comparacion_acciones_contacto_estrecho_con_sintomas_desagregaciones, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
 ## Desagregaciones 
 
 # Medidas de autocuidado y proteccion antes sospecha covid según medios de información 
@@ -1562,14 +1866,445 @@ graph_barras_bivariado(indice_respuesta_contacto_estrecho_con_sintomas_medios,
 
 ### 7. Aceptabilidad de estrategias para aumentar tasa de vacunación ante COVID-19 (percepción que tengan las personas de estas estrategias)
 
+No existen preguntas que directamente permitan evaluar la efectividad de distintas estrategias para aumentar la tasa de vacunación. No obstante, en la segunda versión del cuestionario (2022) se pregunta a las personas si consideran que *"Obtener el pase de movilidad una motivación importante para que las personas se vacunen"* (d12.9). 
+
+Respecto a esta pregunta, se observa que el 80% (IC95% 77.1-83.0) de las personas estaría de acuerdo o muy de acuerdo con esta afirmación y un 13.8% (IC95% 11.2-16.3) estaría en desacuerdo o muy en desacuerdo.
+
+```{r motivacion_pase, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+## Desagregaciones 
+
+## d12.9 Considera que el pase de movilidad es una motivación importante para que las personas se vacunen?
+
+motivacion_pase <- 
+  movid_2022_s |> 
+  filter(!d12_9_recoded == "NS/NR") |> 
+  group_by(d12_9_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(motivacion_pase,
+                       titulo = "Obtener el Pase de Movilidad es una motivación importante para que las personas se vacunen")
+
+```
+
+Al desagregar por sexo y principal medio de información no se encontraron diferencias. Sin embargo, existen diferencias por tramo etario, donde  se observa que entre las personas de 60 años o más  solo un grupo entorno al 8.0% (IC95% 5.1-10.8) estaría en desacuerdo o muy en desacuerdo con esta frase, en contraste con el 17.1% (IC95% 13.5-20.8) de las personas entre 30 y 59 años. En este sentido, se podría afirmar que las personas de 60 años o más están más dispuestas a acatar normas de las autoridades sanitarías incluso si no están de acuerdo, en comparación con el grupo de 30 a 59 años. 
+
+```{r motivacion_pase_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+## Desagregaciones 
+
+# Desagergada por sexo
+motivacion_pase_sexo <-
+movid_2022_s |> 
+  filter(!d12_9_recoded == "NS/NR") |> 
+  group_by(sexo, d12_9_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Desagregada por medios de informacion
+motivacion_pase_medios <-
+movid_2022_s |> 
+  filter(!d12_9_recoded == "NS/NR", !mi_web_o_tradicionales == "Otros/NS/NR") |> 
+  group_by(mi_web_o_tradicionales, d12_9_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Desagregada por tramo etario
+motivacion_pase_edad <-
+movid_2022_s |> 
+  filter(!d12_9_recoded == "NS/NR") |> 
+  group_by(edad_2, d12_9_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(motivacion_pase_edad,
+                       titulo = "Obtener el Pase de Movilidad es una motivación importante para que las personas se vacunen")
+
+```
+
+
+Adicionalmente, en ambas versiones del cuestionario se evaluó el nivel de seguimiento de normas  de las autoridades sanitarias por parte de las personas, (preguntas e1.4 en versión 2022 y f3.3 en versión 2020) pidiendo dar su nivel de acuerdo con la siguiente afirmación: *"Aunque a veces no estemos de acuerdo con las autoridades sanitarias y las medidas que se proponen, es nuestro deber seguir sus indicaciones al pie de la letra"*. En este sentido, puede esperarse que aquellas personas con un bajo nivel de aceptación de normas estarían encontrarían contrarías a aceptar estrategias para aumentar la tasa de vacunación, a la vez que serían el grupo objetivo de estas estrategias. 
+
+Como se observa en el siguiente gráfico, no hay mayores diferencias al comparar ambos años, tanto en el año 2020 como en 2022 más del 80% de la población esta de acuerdo  o muy de acuerdo con que se deben seguir las indicaciones de las autoridades sanitarias. 
+
+```{r acata_normas_comparacion_anos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+## Acatación normas  autoridades sanitarias, comparacion año 2020 (f3_3) y 2022 (e1_4)
+
+#Año 2020
+acata_normas_2020 <- 
+movid_2020_s |> 
+  filter(!f3_3_recoded == "NS/NR") |> 
+  group_by(f3_3_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2020") |> 
+  select(ano, valoracion = f3_3_recoded,  everything())
+# Año 2022
+acata_normas_2022 <- 
+movid_2022_s |> 
+  filter(!e1_4_recoded == "NS/NR") |> 
+  group_by(e1_4_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2022") |> 
+  select(ano, valoracion = e1_4_recoded,  everything())
+
+# Tabulado con comparacion de los anos
+
+acata_normas_comparacion_anos <- rbind(acata_normas_2020, acata_normas_2022)
+
+graph_barras_bivariado(motivacion_pase_edad,
+                       titulo = "Aunque a veces no estemos de acuerdo con las autoridades sanitarias y las medidas que se proponen, es nuestro deber seguir sus indicaciones al pie de la letra")
+
+```
+
+También se comparó la aprobación del gobierno respecto a las medidas para combatir la pandemia, pidiendo a las personas dar su nivel de acuerdo con la siguiente frase: "Las medidas que el
+gobierno actual está adoptando para proteger a la población del coronavirus han sido las adecuadas" (pregunta f3.4 en 2020 y e1.5 en cuestionario 2022). Al respecto, es importante mencionar que una de las principales diferencias entre ambos años sería el despliegue de la campaña de vacunación contra el covid-19 y  el relajamiento  de restricciones a la movilización de las personas, condicionada al pase de movilidad (interiores) y la fase epidemiológica de los territorios. 
+
+De esta manera, se observa un aumento significativo en la aprobación del gobierno relacionado cone sta temática, aumentando de un 41.7% (IC95% 38.3-45.2)en 2020 a 60.1% (IC95%56.5-63.6) en 2022. 
+
+```{r aprobacion_gobierno_comparacion_anos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+## Aprobación del gobierno y sus medidas sanitarias, comparacion año 2020 (f3_4) y 2022 (e1_5)
+
+#Año 2020
+aprobacion_gobierno_2020 <- 
+  movid_2020_s |> 
+  filter(!f3_4_recoded == "NS/NR") |> 
+  group_by(f3_4_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2020") |> 
+  select(ano, valoracion = f3_4_recoded,  everything())
+# Año 2022
+aprobacion_gobierno_2022 <- 
+  movid_2022_s |> 
+  filter(!e1_5_recoded == "NS/NR") |> 
+  group_by(e1_5_recoded) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2022") |> 
+  select(ano, valoracion = e1_5_recoded,  everything())
+
+# Tabulado con comparacion de los anos
+
+aprobacion_gobierno_comparacion_anos <- rbind(aprobacion_gobierno_2020, aprobacion_gobierno_2022)
+
+graph_barras_bivariado(aprobacion_gobierno_comparacion_anos,
+                       titulo = "Las medidas que el gobierno actual está adoptando para proteger a la población del coronavirus han sido las adecuadas")
+```
 
 ### 8. Aceptabilidad inmunizaciones en general post COVID-19 (reticencia vacunal) 
 
+En los puntos 4 y 5 ya se entregaron distintos antecedentes y análisis respecto a la disposición vaucnal de las personas respecto al coronavirus. Noobstante, queda abierta la pregunta si  es que este rechazo por parte de la población a las vacunas contra el covid-19 se extiende a las vacunas en general. 
 
+Frente a esta  problemática, primero hay que advertir que en esta encuesta se pregunto por la disposición de las personas a vacunarse anualmente contra el COVID-19, y que, una persona podría estar en contra de la idea de vacunarse anualmente pero  no necesariamente estar contra las vacunas. De la misma forma, como ya se analizó en el punto 4, existen distintas razones por las que se rechaza la vacunación anual contra el COVID-19, de las cuales solamente una implica un rechazo categórico a las vacunas en general.
+
+Habiendo hecho las aclaraciones anteriores, con los resutlados de la encuesta en el año 2022 es posible identificar  a aquella subpoblación que rechaza las inmunizacioens en general (se le denominará "antivacunas"), reconociendo a aquellas personas que no completaron su esquema de vacunación ni lo harían proximanete y declararon estar en contra de las vacunas en general cuando se les consulto por la razón de aquella decisión (pregunta d8). 
+
+Por lo tanto,  solo se hizo esta pregunta a un subconjunto de la muestra: quienes no completaron su esquema de vacunación ni lo harían en las próximas dos semanas.  Este subconjunto correspondería a 99 personas del total encuestado (1267 personas). De este grupo, solo 13 personas en toda la muestra respondieron que rechazan las inmunizaciones en general. 
+
+Al estimar su peso poblacional, se estima que alrededor del 1.0% (IC95% 0.3-1.7) de los mayores de 18 años podrían clasificarse como personas antivacunas o que están en contra de las inmunizaciones en general. 
+
+```{r antivacunas, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+## d8.h Personas que estan en contra las vacunas en general. 
+
+# Recordar que esta pregunta solo se hizo a personas que no tienen su esquema de vacunación completo 
+# y  que  es poco o nada probable que se vacunen en las próximas dos semanas 
+
+# Muestra
+muestra_antivacuna <- 
+movid_2022 |> 
+  filter() |> 
+  group_by(d8_h) |> 
+  tally()
+
+#Estimacion poblacional
+poblacion_antivacunas <- 
+movid_2022_s |> 
+  filter() |> 
+  group_by(d8_h) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+# Ahora bien, se puede identificar a este grupo de "anti-vacunas" como aquellos que
+# 1. no se han vacunado contra el coronavirus y 2. manifestan estar en contra de las vacunas en general. 
+
+# En base a los resultados, se observa que alrededor del 1% (IC95% 0.27% - 1.74%)  de la población objetivo de la encuesta  
+# estaría encontra de las vacunas en general (antivacunas)
+antivacunas <- 
+movid_2022_s |> 
+  filter() |> 
+  group_by(antivacunas) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+
+graph_barras_univariado(antivacunas,
+                       titulo = "Porcentaje población que acepta o rechaza inmunizaciones en general")
+```
+
+Dado que este grupo corresponde a un grupo pequeño, tanto muestral como poblacionalmente, lo más apropiado es caracterizarlos sin expandir los datos poblacionalmente. Al caracterizar a este grupo se observa que son personas de ambos sexos, principalmente de 30 a 59 años, cuyo principal medio de información son tradicionales o internet (pero no ambos), la mayoría cree en la medicina alternativa y cree que la pandemia del COVID19 fue creada intencionalmente, con fines políticos y ecónomicos (visión conspiracionista de la pandemia).
+
+```{r muestra_antivacunas_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Sexo
+muestra_antivacunas_sexo <- 
+  movid_2022 |> 
+  filter(antivacunas == "Antivacunas") |> 
+  group_by(sexo) |> 
+  tally()|> 
+  rename(Sexo = sexo) |> 
+  mutate(Sexo = recode(as.factor(Sexo), '1' = "Hombre", '2' = "Mujer"))
+
+
+muestra_antivacunas_sexo |> kable(booktabs = TRUE, caption = "Sexo de las personas que se encuentran contra las inmunizaciones en general") |> kable_styling(latex_options = "hold_position", full_width = F, position = "center")
+
+```
+
+```{r muestra_antivacunas_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+
+# Tramo etario
+muestra_antivacunas_edad <- 
+  movid_2022 |> 
+  filter(antivacunas == "Antivacunas") |> 
+  group_by(edad_2) |> 
+  tally()|> 
+  rename(`Tramo etario` = edad_2) 
+
+muestra_antivacunas_edad |> kable(booktabs = TRUE, caption = "Tramo etario de las personas que se encuentran contra las inmunizaciones en general") |> kable_styling(latex_options = "hold_position", full_width = F, position = "center")
+
+```
+
+```{r muestra_antivacunas_medios, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+# Medios de información 
+muestra_antivacunas_medios <- 
+  movid_2022 |> 
+  filter(antivacunas == "Antivacunas") |> 
+  group_by(mi_web_o_tradicionales) |> 
+  tally()|> 
+  rename(`Principal medio de información` = mi_web_o_tradicionales) 
+
+muestra_antivacunas_medios |> kable(booktabs = TRUE, caption = "Principal medio de información de las personas que se encuentran contra las inmunizaciones en general") |> kable_styling(latex_options = "hold_position", full_width = F, position = "center")
+
+
+```
+
+
+
+```{r muestra_antivacunas_medicina_alternativa, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+# e1_1 Medicina alternativa
+muestra_antivacunas_medicina_alternativa <- 
+movid_2022 |> 
+  filter(antivacunas == "Antivacunas") |> 
+  group_by(e1_1_recoded) |> 
+  tally() |> 
+  rename(`La medicina alternativa puede ser más efectiva que la convencional para enfrentar la pandemia` = e1_1_recoded) 
+
+muestra_antivacunas_medicina_alternativa |> kable(booktabs = TRUE, caption = "Creencia en la medicina alternativa de las personas que se encuentran contra las inmunizaciones en general") |> kable_styling(latex_options = "hold_position", full_width = F, position = "center")
+
+
+```
+
+
+```{r muestra_antivacunas_conspiracionismo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+# e1_2 Conspiracionismo
+muestra_antivacunas_conspiracionismo <- 
+movid_2022 |> 
+  filter(antivacunas == "Antivacunas") |> 
+  group_by(e1_2_recoded) |> 
+  tally()|> 
+  rename(`La pandemia COVID19 fue creada intencionalmente, con fines políticos y económicos` = e1_2_recoded) 
+
+muestra_antivacunas_conspiracionismo |> kable(booktabs = TRUE, caption = "Visión de los origines del covid entre las personas que se encuentran contra las inmunizaciones en general") |> kable_styling(latex_options = "hold_position", full_width = F, position = "center")
+```
 ### 9. Prevalencia de sintomatología post COVID-19 (Long COVID) 
+
+"Long COVID" o "COVID-19 prolongado" se refiere a una serie de síntomas que continúan durante semanas o incluso meses después de que la etapa aguda de la infección por SARS-CoV-2 (el virus que causa la COVID-19) ha resuelto. Es una condición que se ha reconocido cada vez más a medida que la pandemia de COVID-19 ha continuado.
+
+Los síntomas de long COVID pueden variar ampliamente entre las personas y pueden incluir:
+
+- Fatiga extrema (a veces denominada "neblina mental")
+- Dificultad para respirar o sensación de falta de aliento
+- Tos persistente
+- Dolor en las articulaciones o los músculos
+- Problemas de salud mental como ansiedad y depresión
+- Problemas de concentración y memoria
+- Pérdida del olfato y del gusto
+- Dolor de pecho
+- Palpitaciones cardíacas
+- Problemas para dormir
+- Erupciones cutáneas
+- Otros sintomas
+
+Para evaluar esta sintomatología  en la encuesta, se consultó a las personas que fueron diangosticadas por COVID-19 si tuvieron sintomas que duraron más de un mes (pregunta d9 en cuestionario 2020 y c6 c6 en cuestionario 2022).En el año 2020 un 21.6% (IC95% 9.54-33.6) de la población declaró tener sintomas por más de un mes, mientras que, en el año 2022 un 35.4% (IC95% 27.7-43.1) informó haber sufrido sintomas más allá del mes, por lo tanto, no es posible afirmar que existen diferencias entre ambos años con un 95% de confianza.  
+
+No obstante, con los datos anteriores se puede observar que, al menos, entre 1/4 y 1/3 de las personas que sufrieron la enfermedad en el país experimentaron sintomas asociados al denominado Long COVID. 
+
+```{r long_covid_comparacion_anos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+# d9. Personas que tuvieron sintomas que duraron màs de un mes por covid 
+long_covid_2020 <- 
+  movid_2020_s |> 
+  filter(d6 == 1, !d9 == 8, !d9 == 9) |> 
+  group_by(d9) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2020") |> 
+  select(ano, long_covid = d9, everything())
+#c6
+long_covid_2022 <-
+  movid_2022_s |> 
+  filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
+  group_by(c6) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))|> 
+  mutate(ano = "2022") |> 
+  select(ano, long_covid = c6, everything())
+
+# Comparacion anos 2020 y2022
+
+long_covid_comparacion_anos <- rbind(long_covid_2020, long_covid_2022)
+long_covid_comparacion_anos <- 
+  long_covid_comparacion_anos |> 
+  mutate(long_covid = recode(as.factor(long_covid), 
+                             '1' = "Sintomas por más de un mes", 
+                             '2' = "Sin sintomas por más de un mes"))
+
+graph_barras_bivariado(long_covid_comparacion_anos, 
+                       titulo = "Personas con sintomas que duraron más de un mes tras COVID-19")
+```
+
+Al analizar con más profundidad los datos del año 2022 y desagregarlos por otras variables independientes (sexo, tramo etario y  enfermedad crónica) no fue posible encontrar diferencias significativas con un 95% de confianza dado que el tamaño de la muestra es muy pequeño, dando intervalos de confianza muy amplios para cada respuesta. 
+
+
+```{r long_covid_2022_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Sexo
+long_covid_2022_sexo <- 
+movid_2022_s |> 
+  filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
+  group_by(sexo, c6) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(c6 = recode(as.factor(c6), 
+                             '1' = "Sintomas por más de un mes", 
+                             '2' = "Sin sintomas por más de un mes"))
+ 
+graph_barras_bivariado(long_covid_2022_sexo, 
+                       titulo = "Personas con sintomas que duraron más de un mes tras COVID-19 según sexo")
+```
+
+Asimismo, se observan diferencias según el tramo etario 201
+
+```{r long_covid_2022_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Tramo etario
+long_covid_2022_edad <- 
+movid_2022_s |> 
+  filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
+  group_by(edad_2, c6) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(c6 = recode(as.factor(c6), 
+                             '1' = "Sintomas por más de un mes", 
+                             '2' = "Sin sintomas por más de un mes")) 
+ 
+graph_barras_bivariado(long_covid_2022_edad, 
+                       titulo = "Personas con sintomas que duraron más de un mes tras COVID-19 según tramo etario")
+```
+
+No hay diferencias concluyentes en prevalencia de long covid entre personas que sufren una enfermedad crónica respecto a quienes no. 
+
+```{r long_covid_2022_cronicos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Pacientes cronicos
+long_covid_2022_cronicos <- 
+movid_2022_s |> 
+  filter(c1 == 1, !c6 == 8, !c6 == 9) |> 
+  group_by(cronica_d, c6) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))|> 
+  mutate(c6 = recode(as.factor(c6), 
+                             '1' = "Sintomas por más de un mes", 
+                             '2' = "Sin sintomas por más de un mes"))
+
+graph_barras_bivariado(long_covid_2022_cronicos, 
+                       titulo = "Personas con sintomas que duraron más de un mes tras COVID-19 según padecimiento de enfermedad crónica")
+```
 
 
 ### 10.Prevalencia de patologías de salud mental post pandemia por COVID-19
 
+Por último, respecto a la prevalencia de patologías de salud mental post pandemia por COVID-19, no existen preguntas en la encuesta que evaluen este item en el año 2022, pero si existe a comienzos de la pandemia en la versón 2020 de la encuesta.  En dicha versión se aplicó a los participantes la metodología PHQ-4 que  es una herramienta de detección rápida para la depresión y la ansiedad con  la que se puede utilizar para construir un índice de salud mental rudimentario. 
 
 
+El PHQ-4 consta de cuatro preguntas con cuatro opciones de respuesta: "Nada en absoluto", "Varios días", "Más de la mitad de los días", y "Casi todos los días", que se puntúan de 0 a 3 respectivamente.
+
+Por lo tanto, el rango total de puntajes posibles para el PHQ-4 va de 0 (sin síntomas de ansiedad o depresión) a 12 (síntomas muy severos de ansiedad y depresión).
+
+La interpretación generalmente aceptada de los puntajes del PHQ-4 es la siguiente:
+
+- Un puntaje de 0 a 2 indica no hay síntomas de ansiedad ni depresión.
+- Un puntaje de 3 a 5 indica posibles síntomas de ansiedad o depresión.
+- Un puntaje de 6 a 8 indica síntomas moderados de ansiedad y/o depresión.
+- Un puntaje de 9 a 12 indica síntomas severos de ansiedad y/o depresión.
+
+
+Según los resultados de este indice, en junio de 2020 alrededor de la mitad de los mayores de 18 años podrían sufrir posibles síntomas de ansiedad o depresión o niveles más altos de ansiedad y depresión. 
+
+```{r salud_mental_2020, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Pacientes cronicos
+## Indice salud mental año 2020.
+salud_mental_2020 <- 
+  movid_2020_s |> 
+  filter() |> 
+  group_by(phq_4_categorico) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_univariado(salud_mental_2020, 
+                       titulo = "Prevalencia de sintomas de ansiedad y depresión")
+```
+
+No se observan mayores diferencias según edad o sexo. 
+
+```{r salud_mental_2020_sexo, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Sexo
+salud_mental_2020_sexo <- 
+movid_2020_s |> 
+  filter() |> 
+  group_by(sexo, phq_4_categorico) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(salud_mental_2020_sexo, 
+                       titulo = "Prevalencia de sintomas de ansiedad y depresión según sexo")
+```
+
+```{r salud_mental_2020_edad, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+# Tramo etario
+salud_mental_2020_edad <- 
+movid_2020_s |> 
+  filter() |> 
+  group_by(edad_2, phq_4_categorico) |> 
+  summarize(proportion = survey_mean(vartype = "ci"))
+
+graph_barras_bivariado(salud_mental_2020_edad, 
+                       titulo = "Prevalencia de sintomas de ansiedad y depresión según tramo etario")
+```
+
+En cuanto a la prevalencia de condiciones de salud mental diagnósticadas, no se observan diferencias entre el año 2020 y 2022. 
+
+```{r depresion_diagnositacada_comparacion_anos, echo=FALSE, fig.align='center', warning=FALSE, fig.width=6, fig.height=5, message = FALSE  }
+
+## Prevalencia condiciones de salud mental diagnosticadas, comparacion año 2020 y 2022
+
+#Año 2020
+diagnostico_salud_mental_2020 <- 
+  movid_2020_s |> 
+  filter() |> 
+  group_by(c1_5) |> 
+  summarize(   proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2020") |> 
+  select(ano, valoracion = c1_5,  everything()) |> 
+  mutate(valoracion = ifelse(valoracion == 0, "Sin condición de salud mental", "Con condición de salud mental diagnosticada"))
+# Año 2022
+diagnostico_salud_mental_2022 <- 
+  movid_2022_s |> 
+  filter() |> 
+  group_by(b2_l) |> 
+  summarize(proportion = survey_mean(vartype = "ci")) |> 
+  mutate(ano = "2022") |> 
+  select(ano, valoracion = b2_l,  everything()) |> 
+  mutate(valoracion = ifelse(valoracion == 2, "Sin condición de salud mental", "Con condición de salud mental diagnosticada"))
+
+
+# Tabulado con comparacion de los anos
+
+diagnostico_salud_mental_comparacion_anos <- rbind(diagnostico_salud_mental_2020, diagnostico_salud_mental_2022)
+
+graph_barras_bivariado(diagnostico_salud_mental_comparacion_anos, 
+                        titulo = "Prevalencia condiciones de salud mental diagnosticada")
+```
