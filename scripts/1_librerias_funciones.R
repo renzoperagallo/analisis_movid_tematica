@@ -13,18 +13,6 @@ p_load(tidyverse,
        kableExtra, # Tablas html para markdown
        extrafont)  # Para utilizar fuentes del sistema en ggplot
 
-## Cambiar la fuente para los gráficos de ggplot
-
-# Importa las fuentes del sistema
-font_import()
-# Registra las fuentes para su uso en PDF
-loadfonts(device = "pdf")
-# Cambia la fuente a "Times"
-theme_set(theme_minimal(base_family = "Times"))
-
- 
-
-
 
 
 # ++ Funciones ---------------------------------------------------------------
@@ -63,7 +51,7 @@ graph_barras_bivariado <- function(df_original,
   # ancho_texto_x = 10 Limita el número de caracteres de la  etiqueta del eje X. Se usa para incluir saltos de linea
   #  cuando las etiquetas no caben bien. 
   df <- df_original 
-
+  
   # Preparando los datos para poder referirme a ellos en ggplot y transformandolos a porcentaje
   df$x <- as.factor(df[[1]])
   
@@ -78,12 +66,12 @@ graph_barras_bivariado <- function(df_original,
   df$ymin <- round(df[[4]] * 100, 1)
   # Gráfico
   mi_grafico <- ggplot(data = df, 
-         aes(x = x, 
-             y = y, 
-             group = group_fill, 
-             fill = group_fill,
-             ymax = ymax, 
-             ymin = ymin)) +
+                       aes(x = x, 
+                           y = y, 
+                           group = group_fill, 
+                           fill = group_fill,
+                           ymax = ymax, 
+                           ymin = ymin)) +
     geom_col(stat = "identity", position = "dodge") + # identity permite trabajar con los datos agregados
     geom_errorbar(position = position_dodge(width = 0.9), width = 0.1) + # se añaden barras de error
     labs(title = titulo, # Titulo gráfico
@@ -106,20 +94,9 @@ graph_barras_bivariado <- function(df_original,
       legend.text = element_text(size = rel(0.8)), # Ajusta el tamaño de la leyenda
       axis.title = element_text(size = rel(1), face = "bold"), # Ajusta el tamaño y tipo de letra de los títulos de los ejes
       axis.text = element_text(size = rel(0.8)),
-      axis.text.x = element_text(angle = angulo_text_eje_x, hjust = hjust_text_eje_x))  # Rota las etiquetas del eje x 45 grados) # Ajusta el tamaño del texto de los ejes
+      axis.text.x = element_text(angle = angulo_text_eje_x, hjust = hjust_text_eje_x))  # Rota las etiquetas del eje x) # Ajusta el tamaño del texto de los ejes
   return(mi_grafico)
 }
-
-# Prueba de la funcion
-# graph_barras_bivariado(df_prueba,
-#                        titulo = "Importancia pase de movilidad para vacunacion (d12.9) por tramo etario")
-# graph_barras_bivariado(acata_normas_comparacion_anos,
-#                        titulo = "Acata normas, comparacion año 2020 y 2022.",
-#                        subtitulo = "prueba",
-#                        angulo_text_eje_x = 0,
-#                        hjust_text_eje_x = 0.5,
-#                        ancho_texto_x = NULL)
-
 
 
 # Grafico univariado ------------------------------------------------------
