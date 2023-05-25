@@ -4,3 +4,5 @@
 .Ruserdata
 scripts/ejemplos_survey.R
 *.pdf
+*.html
+*.log
